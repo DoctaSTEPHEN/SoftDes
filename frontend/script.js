@@ -10,7 +10,7 @@ async function getForecast() {
         return;
     }
 
-    const response = await fetch("http://127.0.0.1:5000/forecast", {
+    const response = await fetch("https://your-app.onrender.com/forecast", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
