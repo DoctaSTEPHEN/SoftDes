@@ -10,7 +10,7 @@ async function getForecast() {
         return;
     }
 
-    const response = await fetch("https://your-app.onrender.com/forecast", {
+    const response = await fetch("https://softdes-2.onrender.com/", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
