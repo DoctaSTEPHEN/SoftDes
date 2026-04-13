@@ -13,13 +13,6 @@ CORS(app)
 model = load_model()
 
 # -----------------------------
-# HEALTH CHECK
-# -----------------------------
-@app.route("/")
-def home():
-    return "Water Forecasting API Running"
-
-# -----------------------------
 # FRONTEND PAGE
 # -----------------------------
 @app.route("/")
