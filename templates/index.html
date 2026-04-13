@@ -1,42 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Water Forecasting System</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Water Forecasting</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 
 <body>
 
-<div class="container">
+<h1>Water Consumption Forecast</h1>
 
-    <h1>💧 Water Consumption Forecasting System</h1>
-
-    <!-- INPUT SECTION -->
-    <div class="card">
-        <h2>Input Monthly Data</h2>
-
-        <textarea id="inputData" placeholder='
-Example:
+<textarea id="inputData">
 [
  {"Year":2025,"Month":1},
  {"Year":2025,"Month":2},
  {"Year":2025,"Month":3}
-]'></textarea>
+]
+</textarea>
 
-        <button onclick="getForecast()">Generate Forecast</button>
-    </div>
+<br>
+<button onclick="getForecast()">Forecast</button>
 
-    <!-- RESULT SECTION -->
-    <div class="card">
-        <h2>Forecast Result</h2>
-        <canvas id="chart"></canvas>
-    </div>
-
-</div>
+<canvas id="chart"></canvas>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="script.js"></script>
+<script src="/static/script.js"></script>
 
 </body>
 </html>
