@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 import pandas as pd
 import joblib
 from utils.model_utils import forecast, load_model
+from flask_cors import CORS
+CORS(app)
 
 app = Flask(__name__)
 
