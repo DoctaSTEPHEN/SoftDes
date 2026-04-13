@@ -3,9 +3,9 @@ import pandas as pd
 import joblib
 from utils.model_utils import forecast, load_model
 from flask_cors import CORS
-CORS(app)
 
 app = Flask(__name__)
+CORS(app)
 
 # -----------------------------
 # LOAD MODEL
