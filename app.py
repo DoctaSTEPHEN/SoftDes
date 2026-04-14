@@ -21,25 +21,16 @@ def home():
 @app.route("/forecast", methods=["POST"])
 def predict():
     try:
-        data = request.get_json()
-
-        # allow both formats:
-        # {"data": [...]}
-        # OR direct [...]
-        if isinstance(data, dict):
-            data = data.get("data", [])
-
+        data = request.get_json()["data"]
         df = pd.DataFrame(data)
 
-        # ensure correct columns exist
-        required_cols = ["Year", "Month"]
-        for col in required_cols:
-            if col not in df.columns:
-                return jsonify({"error": f"Missing column: {col}"}), 400
+        # FIX: always forecast next 3 months
+        steps = 3
 
-        predictions = forecast(model, df)
+        predictions = forecast(model, df, steps=steps)
 
         return jsonify({
+            "forecast_months": steps,
             "forecast": predictions
         })
 
