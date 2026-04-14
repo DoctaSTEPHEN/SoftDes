@@ -21,24 +21,30 @@ def home():
 @app.route("/forecast", methods=["POST"])
 def predict():
     try:
-        data = request.get_json()["data"]
+        data = request.get_json()
+
+        # Accept BOTH:
+        # { "data": [...] } OR just [...]
+        if isinstance(data, dict):
+            data = data.get("data", [])
+
         df = pd.DataFrame(data)
 
-        # -----------------------------
-        # 1. FORECAST NEXT 3 MONTHS
-        # -----------------------------
+        # Ensure correct columns
+        if "Year" not in df or "Month" not in df:
+            return jsonify({"error": "Year and Month required"}), 400
+
         steps = 3
         predictions = forecast(model, df, steps=steps)
 
-        # -----------------------------
-        # 2. GENERATE FUTURE MONTHS
-        # -----------------------------
-        last_year = df.iloc[-1]["Year"]
-        last_month = df.iloc[-1]["Month"]
+        last_year = int(df.iloc[-1]["Year"])
+        last_month = int(df.iloc[-1]["Month"])
 
-        future_results = []
+        results = []
         alerts = []
         maintenance = []
+
+        avg = df["Total Consumption"].mean() if "Total Consumption" in df else 0
 
         for i in range(steps):
             month = last_month + i + 1
@@ -53,45 +59,30 @@ def predict():
             consumption = float(pred[0]) if isinstance(pred, (list, tuple)) else float(pred)
             bill = float(pred[1]) if isinstance(pred, (list, tuple)) else None
 
-            # -----------------------------
-            # 3. ANOMALY DETECTION
-            # -----------------------------
-            avg = df["Total Consumption"].mean()
+            # anomaly
+            if avg and consumption > avg * 1.3:
+                alerts.append(f"High consumption at {month}/{year}")
 
-            if consumption > avg * 1.3:  # 30% higher than normal
-                alerts.append({
-                    "type": "anomaly",
-                    "message": f"High water consumption predicted for {month}/{year}"
-                })
-
-            # -----------------------------
-            # 4. QUARTERLY MAINTENANCE
-            # -----------------------------
+            # maintenance
             if month in [3, 6, 9, 12]:
-                maintenance.append({
-                    "type": "maintenance",
-                    "message": f"Scheduled maintenance reminder for {month}/{year}"
-                })
+                maintenance.append(f"Maintenance at {month}/{year}")
 
-            future_results.append({
-                "Year": int(year),
-                "Month": int(month),
-                "Predicted Consumption": round(consumption, 2),
-                "Predicted Bill": round(bill, 2) if bill else None
+            results.append({
+                "Year": year,
+                "Month": month,
+                "Consumption": round(consumption, 2),
+                "Bill": round(bill, 2) if bill else None
             })
 
-        # -----------------------------
-        # RESPONSE
-        # -----------------------------
         return jsonify({
-            "forecast": future_results,
+            "forecast": results,
             "alerts": alerts,
             "maintenance": maintenance
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
+        
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
