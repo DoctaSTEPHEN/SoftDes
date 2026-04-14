@@ -23,16 +23,11 @@ def predict():
     try:
         data = request.get_json()
 
-        # Accept BOTH:
-        # { "data": [...] } OR just [...]
-        if isinstance(data, dict):
-            data = data.get("data", [])
+        # get inputs
+        records = data.get("data", [])
+        maintenance_month = data.get("maintenance_month", None)
 
-        df = pd.DataFrame(data)
-
-        # Ensure correct columns
-        if "Year" not in df or "Month" not in df:
-            return jsonify({"error": "Year and Month required"}), 400
+        df = pd.DataFrame(records)
 
         steps = 3
         predictions = forecast(model, df, steps=steps)
@@ -44,7 +39,7 @@ def predict():
         alerts = []
         maintenance = []
 
-        avg = df["Total Consumption"].mean() if "Total Consumption" in df else 0
+        avg = df["Total Consumption"].mean()
 
         for i in range(steps):
             month = last_month + i + 1
@@ -59,19 +54,19 @@ def predict():
             consumption = float(pred[0]) if isinstance(pred, (list, tuple)) else float(pred)
             bill = float(pred[1]) if isinstance(pred, (list, tuple)) else None
 
-            # anomaly
-            if avg and consumption > avg * 1.3:
+            # anomaly detection
+            if consumption > avg * 1.3:
                 alerts.append(f"High consumption at {month}/{year}")
 
-            # maintenance
-            if month in [3, 6, 9, 12]:
-                maintenance.append(f"Maintenance at {month}/{year}")
+            # maintenance (USER-DEFINED)
+            if maintenance_month and int(month) == int(maintenance_month):
+                maintenance.append(f"Maintenance scheduled at {month}/{year}")
 
             results.append({
                 "Year": year,
                 "Month": month,
-                "Consumption": round(consumption, 2),
-                "Bill": round(bill, 2) if bill else None
+                "Consumption": consumption,
+                "Bill": bill
             })
 
         return jsonify({
@@ -81,8 +76,7 @@ def predict():
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-        
+        return jsonify({"error": str(e)}), 500        
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
