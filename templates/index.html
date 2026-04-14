@@ -1,29 +1,61 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Water Forecasting</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <title>Water Forecast</title>
 </head>
-
 <body>
 
-<h1>Water Consumption Forecast</h1>
+<h2>Water Consumption Forecast</h2>
 
-<textarea id="inputData">
-[
- {"Year":2025,"Month":1},
- {"Year":2025,"Month":2},
- {"Year":2025,"Month":3}
-]
+<textarea id="inputData" rows="15" cols="60">
+{
+  "data": [
+    {"Year": 2024, "Month": 1, "Total Consumption": 72, "Bill Amount": 2344.43},
+    {"Year": 2024, "Month": 2, "Total Consumption": 78, "Bill Amount": 2724.90},
+    {"Year": 2024, "Month": 3, "Total Consumption": 61, "Bill Amount": 2534.86},
+    {"Year": 2024, "Month": 4, "Total Consumption": 65, "Bill Amount": 2862.54},
+    {"Year": 2024, "Month": 5, "Total Consumption": 64, "Bill Amount": 2806.50}
+  ]
+}
 </textarea>
 
-<br>
-<button onclick="getForecast()">Forecast</button>
+<br><br>
 
-<canvas id="chart"></canvas>
+<button onclick="sendData()">Forecast</button>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="/static/script.js"></script>
+<h3>Result:</h3>
+<pre id="result"></pre>
+
+<script>
+function sendData() {
+    const input = document.getElementById("inputData").value;
+
+    fetch("/forecast", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: input
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("result").textContent =
+            JSON.stringify(data, null, 2);
+
+        // popup alerts
+        if (data.alerts && data.alerts.length > 0) {
+            alert("⚠️ " + data.alerts.join("\n"));
+        }
+
+        if (data.maintenance && data.maintenance.length > 0) {
+            alert("🔧 " + data.maintenance.join("\n"));
+        }
+    })
+    .catch(err => {
+        document.getElementById("result").textContent = err;
+    });
+}
+</script>
 
 </body>
 </html>
