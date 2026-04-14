@@ -30,3 +30,39 @@ function drawChart(data) {
         }
     });
 }
+
+function sendData() {
+    let input;
+
+    try {
+        input = JSON.parse(document.getElementById("inputData").value);
+    } catch (e) {
+        alert("Invalid JSON format");
+        return;
+    }
+
+    fetch("/forecast", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(input)
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("result").textContent =
+            JSON.stringify(data, null, 2);
+
+        // ALERTS
+        if (data.alerts && data.alerts.length > 0) {
+            alert("⚠️ Alerts:\n" + data.alerts.join("\n"));
+        }
+
+        if (data.maintenance && data.maintenance.length > 0) {
+            alert("🔧 Maintenance:\n" + data.maintenance.join("\n"));
+        }
+    })
+    .catch(err => {
+        document.getElementById("result").textContent = err;
+    });
+}
