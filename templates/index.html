@@ -2,60 +2,34 @@
 <html>
 <head>
     <title>Water Forecast</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
-<h2>Water Consumption Forecast</h2>
+<h2>Water Forecast System</h2>
 
-<textarea id="inputData" rows="15" cols="60">
-{
-  "data": [
-    {"Year": 2024, "Month": 1, "Total Consumption": 72, "Bill Amount": 2344.43},
-    {"Year": 2024, "Month": 2, "Total Consumption": 78, "Bill Amount": 2724.90},
-    {"Year": 2024, "Month": 3, "Total Consumption": 61, "Bill Amount": 2534.86},
-    {"Year": 2024, "Month": 4, "Total Consumption": 65, "Bill Amount": 2862.54},
-    {"Year": 2024, "Month": 5, "Total Consumption": 64, "Bill Amount": 2806.50}
-  ]
-}
-</textarea>
+<!-- JSON INPUT -->
+<h3>JSON Input</h3>
+<textarea id="jsonInput"></textarea>
+
+<!-- CSV INPUT -->
+<h3>Upload CSV</h3>
+<input type="file" id="csvFile">
+
+<!-- Maintenance input -->
+<h3>Maintenance Month (1–12)</h3>
+<input type="number" id="maintenanceMonth" min="1" max="12">
 
 <br><br>
-
 <button onclick="sendData()">Forecast</button>
 
 <h3>Result:</h3>
 <pre id="result"></pre>
 
-<script>
-function sendData() {
-    const input = document.getElementById("inputData").value;
+<canvas id="chart" width="400" height="200"></canvas>
 
-    fetch("/forecast", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: input
-    })
-    .then(res => res.json())
-    .then(data => {
-        document.getElementById("result").textContent =
-            JSON.stringify(data, null, 2);
-
-        // popup alerts
-        if (data.alerts && data.alerts.length > 0) {
-            alert("⚠️ " + data.alerts.join("\n"));
-        }
-
-        if (data.maintenance && data.maintenance.length > 0) {
-            alert("🔧 " + data.maintenance.join("\n"));
-        }
-    })
-    .catch(err => {
-        document.getElementById("result").textContent = err;
-    });
-}
-</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
 
 </body>
 </html>
