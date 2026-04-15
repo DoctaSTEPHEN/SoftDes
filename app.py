@@ -1,5 +1,4 @@
 from flask import Flask, render_template, request, jsonify
-from pymongo import MongoClient
 import pandas as pd
 import numpy as np
 import joblib
@@ -14,115 +13,83 @@ app = Flask(__name__)
 model = joblib.load("model/gb_model.pkl")
 
 # =========================
-# MONGODB SETUP (SAFE)
+# IN-MEMORY STORAGE (NO DB)
 # =========================
-MONGO_URI = os.getenv("MONGO_URI")
-
-if not MONGO_URI:
-    raise Exception("MONGO_URI not set in environment variables")
-
-client = MongoClient(MONGO_URI)
-
-db = client["water_db"]
-collection = db["records"]
+data_store = pd.DataFrame(columns=[
+    "Year", "Month", "Consumption", "Bill"
+])
 
 # =========================
-# HOME PAGE
+# HOME
 # =========================
 @app.route("/")
 def home():
     return render_template("index.html")
 
 # =========================
-# SAFE DATA FETCH
-# =========================
-def get_dataframe():
-    data = list(collection.find({}, {"_id": 0}))
-    df = pd.DataFrame(data)
-
-    if df.empty:
-        return df
-
-    # ensure correct types
-    try:
-        df["Year"] = df["Year"].astype(int)
-        df["Month"] = df["Month"].astype(int)
-        df["Consumption"] = df["Consumption"].astype(float)
-        df["Bill"] = df["Bill"].astype(float)
-    except:
-        pass
-
-    return df
-
-# =========================
-# ADD SINGLE RECORD
+# ADD RECORD
 # =========================
 @app.route("/api/add", methods=["POST"])
 def add_record():
     try:
+        global data_store
+
         data = request.json
 
-        if not data:
-            return jsonify({"error": "No input data"}), 400
-
-        record = {
+        new_row = {
             "Year": int(data["Year"]),
             "Month": int(data["Month"]),
             "Consumption": float(data["Consumption"]),
-            "Bill": float(data["Bill"]),
-            "created_at": datetime.now().isoformat()
+            "Bill": float(data["Bill"])
         }
 
-        collection.insert_one(record)
+        data_store = pd.concat(
+            [data_store, pd.DataFrame([new_row])],
+            ignore_index=True
+        )
 
-        return jsonify({
-            "message": "Record added successfully"
-        })
+        return jsonify({"message": "Record added successfully"})
 
     except Exception as e:
-        return jsonify({
-            "error": "Failed to add record",
-            "details": str(e)
-        }), 500
+        return jsonify({"error": str(e)}), 500
 
 # =========================
-# GET ALL DATA
+# GET DATA
 # =========================
 @app.route("/api/data")
 def get_data():
-    df = get_dataframe()
-    return jsonify(df.to_dict("records"))
+    return jsonify(data_store.to_dict("records"))
 
 # =========================
 # DASHBOARD
 # =========================
 @app.route("/api/dashboard")
 def dashboard():
-    df = get_dataframe()
-
-    if df.empty:
+    if data_store.empty:
         return jsonify({"message": "No data yet"})
 
     return jsonify({
-        "total": float(df["Consumption"].sum()),
-        "avg": float(df["Consumption"].mean()),
-        "bill": float(df["Bill"].sum()),
-        "count": len(df)
+        "total": float(data_store["Consumption"].sum()),
+        "avg": float(data_store["Consumption"].mean()),
+        "bill": float(data_store["Bill"].sum()),
+        "count": len(data_store)
     })
 
 # =========================
-# UPLOAD (CSV + JSON FIXED)
+# UPLOAD CSV / JSON (FIXED)
 # =========================
 @app.route("/api/upload", methods=["POST"])
 def upload():
     try:
+        global data_store
+
         if "file" not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files["file"]
         filename = file.filename.lower()
 
-        # -------- READ FILE --------
+        # READ FILE
         if filename.endswith(".csv"):
             df = pd.read_csv(file)
         elif filename.endswith(".json"):
@@ -130,27 +97,26 @@ def upload():
         else:
             return jsonify({"error": "Only CSV and JSON allowed"}), 400
 
-        # -------- VALIDATE COLUMNS --------
+        # REQUIRED COLUMNS
         required = ["Year", "Month", "Consumption", "Bill"]
-        missing = [c for c in required if c not in df.columns]
 
+        missing = [c for c in required if c not in df.columns]
         if missing:
             return jsonify({
                 "error": "Invalid file format",
-                "missing_columns": missing,
-                "required": required
+                "missing": missing
             }), 400
 
         df = df[required].dropna()
 
-        # -------- TYPE SAFETY --------
+        # TYPE FIX
         df["Year"] = df["Year"].astype(int)
         df["Month"] = df["Month"].astype(int)
         df["Consumption"] = df["Consumption"].astype(float)
         df["Bill"] = df["Bill"].astype(float)
 
-        # -------- INSERT --------
-        collection.insert_many(df.to_dict("records"))
+        # ADD TO MEMORY
+        data_store = pd.concat([data_store, df], ignore_index=True)
 
         return jsonify({
             "message": "Upload successful",
@@ -158,69 +124,54 @@ def upload():
         })
 
     except Exception as e:
-        return jsonify({
-            "error": "Upload failed",
-            "details": str(e)
-        }), 500
+        return jsonify({"error": str(e)}), 500
 
 # =========================
-# FORECAST (SAFE + FIXED)
+# FORECAST
 # =========================
 @app.route("/api/forecast")
 def forecast():
-    df = get_dataframe()
+    if data_store.empty or len(data_store) < 3:
+        return jsonify({"error": "Not enough data"})
 
-    if df.empty or len(df) < 3:
-        return jsonify({"error": "Not enough data for forecasting"})
+    X = np.arange(len(data_store)).reshape(-1, 1)
 
-    try:
-        X = np.arange(len(df)).reshape(-1, 1)
+    history_pred = model.predict(X)
 
-        history_pred = model.predict(X)
+    future_X = np.arange(len(data_store), len(data_store) + 3).reshape(-1, 1)
+    future_pred = model.predict(future_X)
 
-        future_X = np.arange(len(df), len(df) + 3).reshape(-1, 1)
-        future_pred = model.predict(future_X)
-
-        return jsonify({
-            "history_actual": df["Consumption"].tolist(),
-            "history_predicted": history_pred.tolist(),
-            "future_3_months": future_pred.tolist()
-        })
-
-    except Exception as e:
-        return jsonify({
-            "error": "Forecast failed",
-            "details": str(e)
-        }), 500
+    return jsonify({
+        "history_actual": data_store["Consumption"].tolist(),
+        "history_predicted": history_pred.tolist(),
+        "future_3_months": future_pred.tolist()
+    })
 
 # =========================
 # VISUALIZATION
 # =========================
 @app.route("/api/visualize")
 def visualize():
-    df = get_dataframe()
-
     return jsonify({
-        "months": df["Month"].tolist() if not df.empty else [],
-        "consumption": df["Consumption"].tolist() if not df.empty else [],
-        "bill": df["Bill"].tolist() if not df.empty else []
+        "months": data_store["Month"].tolist(),
+        "consumption": data_store["Consumption"].tolist(),
+        "bill": data_store["Bill"].tolist()
     })
 
 # =========================
-# ANOMALY DETECTION (IMPROVED)
+# ANOMALY DETECTION
 # =========================
 @app.route("/api/anomaly")
 def anomaly():
-    df = get_dataframe()
-
-    if df.empty:
+    if data_store.empty:
         return jsonify([])
 
-    mean = df["Consumption"].mean()
-    std = df["Consumption"].std()
+    mean = data_store["Consumption"].mean()
+    std = data_store["Consumption"].std()
 
     threshold = mean + (1.5 * std)
 
+    df = data_store.copy()
     df["status"] = df["Consumption"].apply(
         lambda x: "ANOMALY" if x > threshold else "NORMAL"
     )
