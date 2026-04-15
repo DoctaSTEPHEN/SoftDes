@@ -230,40 +230,74 @@ def upload():
 @app.route("/api/forecast")
 def forecast():
     try:
-        if len(data_store) < 3:
+        if data_store.empty or len(data_store) < 3:
             return jsonify({
-                "error": "Need at least 3 records",
+                "error": "Need at least 3 records for forecast",
                 "history_actual": [],
                 "history_predicted": [],
-                "future_3_months": [0,0,0]
+                "future_3_months": [0, 0, 0]
             })
 
+        # =========================
+        # 1. SORT DATA (IMPORTANT FIX)
+        # =========================
+        df = data_store.copy()
+        df = df.sort_values(by=["Year", "Month"]).reset_index(drop=True)
+
+        # =========================
+        # 2. HISTORY FEATURES
+        # =========================
         X = np.column_stack([
-            np.arange(len(data_store)),
-            data_store["Month"]
+            np.arange(len(df)),
+            df["Month"]
         ])
 
         history_pred = model.predict(X).tolist()
 
-        last_idx = len(data_store)
-        last_month = data_store["Month"].iloc[-1]
+        # =========================
+        # 3. GET LAST ENTRY (FIXED ANCHOR POINT)
+        # =========================
+        last_year = int(df["Year"].iloc[-1])
+        last_month = int(df["Month"].iloc[-1])
+        last_index = len(df)
 
-        future_X = [
-            [last_idx+i, (last_month+i-1)%12+1]
-            for i in range(3)
-        ]
+        # =========================
+        # 4. BUILD NEXT 3 MONTHS
+        # =========================
+        future_X = []
+        future_labels = []
+
+        year = last_year
+        month = last_month
+
+        for i in range(3):
+            month += 1
+            if month > 12:
+                month = 1
+                year += 1
+
+            future_X.append([last_index + i, month])
+            future_labels.append(f"{year}-{month:02d}")
 
         future_pred = model.predict(np.array(future_X)).tolist()
 
+        # =========================
+        # 5. RETURN RESPONSE
+        # =========================
         return jsonify({
-            "history_actual": data_store["Consumption"].tolist(),
+            "history_actual": df["Consumption"].tolist(),
             "history_predicted": history_pred,
-            "future_3_months": future_pred
+            "future_3_months": future_pred,
+            "future_labels": future_labels
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)})
-
+        return jsonify({
+            "error": str(e),
+            "history_actual": [],
+            "history_predicted": [],
+            "future_3_months": [0, 0, 0]
+        })
 # =========================
 # ANOMALY
 # =========================
