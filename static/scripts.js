@@ -120,36 +120,48 @@ async function loadForecast() {
 let chartInstance;
 
 async function loadChart() {
-    const r = await fetch(`${BASE_URL}/api/forecast`);
-    const d = await r.json();
+    const res = await fetch(`${BASE_URL}/api/forecast`);
+    const d = await res.json();
 
-    if (!d.history_actual) return;
+    if (!d.history_actual || !d.history_actual.length) return;
 
-    const ctx = chart.getContext("2d");
+    const ctx = document.getElementById("chart").getContext("2d");
 
     if (chartInstance) chartInstance.destroy();
+
+    const historyLen = d.history_actual.length;
 
     chartInstance = new Chart(ctx, {
         type: "line",
         data: {
             labels: d.labels,
+
             datasets: [
                 {
                     label: "Actual Bill",
-                    data: d.history_actual.concat(Array(d.future_bill.length).fill(null)),
-                    borderColor: "#2196F3"
+                    data: d.history_actual,
+                    borderColor: "#2196F3",
+                    tension: 0.4
                 },
                 {
                     label: "Forecast Bill",
-                    data: Array(d.history_actual.length).fill(null).concat(d.future_bill),
+                    data: [
+                        ...Array(historyLen).fill(null),
+                        ...d.future_bill
+                    ],
                     borderColor: "#FF5722",
-                    borderDash: [5,5]
+                    borderDash: [5, 5],
+                    tension: 0.4
                 }
             ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            spanGaps: true
         }
     });
 }
-
 // =============================
 // ANOMALY
 // =============================
