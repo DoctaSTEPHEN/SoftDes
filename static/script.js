@@ -125,6 +125,70 @@ async function deleteRecord(index) {
     loadDashboard();
 }
 
+async function addData() {
+    const data = {
+        Year: document.getElementById("year").value,
+        Month: document.getElementById("month").value,
+        Consumption: document.getElementById("consumption").value,
+        Bill: document.getElementById("bill").value
+    };
+
+    await fetch("/api/add", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+    });
+
+    alert("Saved!");
+    loadDashboard();
+    checkMaintenance();
+}
+
+// =====================
+async function loadDashboard() {
+    const res = await fetch("/api/dashboard");
+    const data = await res.json();
+
+    document.getElementById("total").innerText = data.total;
+    document.getElementById("avg").innerText = data.avg;
+    document.getElementById("bill_total").innerText = data.bill;
+}
+
+// =====================
+async function getForecast() {
+    const res = await fetch("/api/forecast");
+    const data = await res.json();
+
+    document.getElementById("forecast").innerText =
+        "Next: " + data.next;
+}
+
+// =====================
+async function checkAnomaly() {
+    const res = await fetch("/api/anomaly");
+    const data = await res.json();
+
+    let output = "";
+
+    data.forEach(d => {
+        if (d.status === "ANOMALY") {
+            output += `⚠ Month ${d.Month} - High usage<br>`;
+        }
+    });
+
+    document.getElementById("anomaly").innerHTML = output;
+}
+
+// =====================
+async function checkMaintenance() {
+    const res = await fetch("/api/maintenance");
+    const data = await res.json();
+
+    if (data.alert) {
+        alert(data.message);
+    }
+}
+
 // =============================
 // INIT
 // =============================
@@ -132,4 +196,5 @@ window.onload = () => {
     showPage("dashboard");
     loadDashboard();
     loadReports();
+    checkMaintenance();
 };
