@@ -13,13 +13,31 @@ app = Flask(__name__)
 # =============================
 DATA_PATH = "data/storage.csv"
 
-model = joblib.load("model/gb_model.pkl")
+# =============================
+# SAFE MODEL LOADING
+# =============================
+try:
+    model = joblib.load("model/gb_model.pkl")
+except Exception as e:
+    model = None
+    print("Model load failed:", e)
 
-# MongoDB (optional but connected)
+# =============================
+# MONGO SAFE CONNECTION
+# =============================
 MONGO_URI = os.getenv("MONGO_URI")
-client = MongoClient(MONGO_URI)
-db = client["water_db"]
-collection = db["records"]
+
+client = None
+db = None
+collection = None
+
+if MONGO_URI:
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client["water_db"]
+        collection = db["records"]
+    except Exception as e:
+        print("MongoDB connection failed:", e)
 
 # =============================
 # INIT STORAGE
@@ -39,10 +57,31 @@ init_storage()
 # LOAD / SAVE CSV
 # =============================
 def load_data():
-    return pd.read_csv(DATA_PATH)
+    try:
+        return pd.read_csv(DATA_PATH)
+    except:
+        return pd.DataFrame()
 
 def save_data(df):
     df.to_csv(DATA_PATH, index=False)
+
+# =============================
+# ROOT (FIXED ERROR)
+# =============================
+@app.route("/")
+def home():
+    return jsonify({
+        "message": "Water API is running 🚀",
+        "routes": [
+            "/dashboard",
+            "/record/manual",
+            "/record/upload",
+            "/reports",
+            "/forecast",
+            "/visualize",
+            "/anomaly"
+        ]
+    })
 
 # =============================
 # DASHBOARD
@@ -55,14 +94,14 @@ def dashboard():
         return jsonify({"message": "No data yet"})
 
     return jsonify({
-        "total_usage": df["Consumption"].sum(),
-        "avg_usage": df["Consumption"].mean(),
-        "total_bill": df["Bill"].sum(),
+        "total_usage": float(df["Consumption"].sum()),
+        "avg_usage": float(df["Consumption"].mean()),
+        "total_bill": float(df["Bill"].sum()),
         "entries": len(df)
     })
 
 # =============================
-# ADD RECORD (CSV + MongoDB sync)
+# ADD RECORD
 # =============================
 @app.route("/record/manual", methods=["POST"])
 def add_record():
@@ -78,15 +117,14 @@ def add_record():
             "DateAdded": datetime.now().isoformat()
         }
 
-        # ---- CSV save ----
         df = load_data()
         df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
         save_data(df)
 
-        # ---- MongoDB save ----
-        collection.insert_one(new_entry)
+        if collection is not None:
+            collection.insert_one(new_entry)
 
-        return jsonify({"message": "Record added (CSV + MongoDB)"}), 200
+        return jsonify({"message": "Record added successfully"}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -104,10 +142,10 @@ def upload_file():
         df = pd.concat([df, df_new], ignore_index=True)
         save_data(df)
 
-        # sync to MongoDB
-        collection.insert_many(df_new.to_dict(orient="records"))
+        if collection is not None:
+            collection.insert_many(df_new.to_dict(orient="records"))
 
-        return jsonify({"message": "File uploaded successfully (synced to DB)"})
+        return jsonify({"message": "File uploaded successfully"})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -154,7 +192,7 @@ def update_record(index):
         return jsonify({"error": str(e)}), 500
 
 # =============================
-# FORECAST (ML MODEL)
+# FORECAST
 # =============================
 @app.route("/forecast")
 def forecast_data():
@@ -162,6 +200,9 @@ def forecast_data():
 
     if df.empty:
         return jsonify({"error": "No data"}), 400
+
+    if model is None:
+        return jsonify({"error": "Model not loaded"}), 500
 
     n = len(df)
 
@@ -178,7 +219,7 @@ def forecast_data():
     })
 
 # =============================
-# VISUALIZATION DATA
+# VISUALIZATION
 # =============================
 @app.route("/visualize")
 def visualize():
@@ -191,7 +232,7 @@ def visualize():
     })
 
 # =============================
-# ANOMALY DETECTION (IMPROVED)
+# ANOMALY DETECTION
 # =============================
 @app.route("/anomaly")
 def anomaly():
