@@ -28,6 +28,38 @@ data_store = pd.DataFrame(columns=["Year", "Month", "Consumption", "Bill"])
 def home():
     return render_template("index.html")
 
+
+# =========================
+# MAINTENANCE
+# =========================
+@app.route("/api/maintenance/today")
+def maintenance_today():
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+
+        # optional rule: every 90 days from earliest record or fixed cycle
+        if data_store.empty:
+            return jsonify({"is_today": False})
+
+        # take last record date as base
+        last = data_store.iloc[-1]
+
+        base_date = datetime(int(last["Year"]), int(last["Month"]), 1)
+        next_maintenance = base_date.replace(day=1)
+
+        # simple quarterly approximation (90 days)
+        next_maintenance = next_maintenance + timedelta(days=90)
+
+        is_today = next_maintenance.strftime("%Y-%m-%d") == today
+
+        return jsonify({
+            "is_today": is_today,
+            "date": next_maintenance.strftime("%Y-%m-%d")
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e), "is_today": False})
+
 # =========================
 # ADD RECORD (ERROR HANDLING)
 # =========================
