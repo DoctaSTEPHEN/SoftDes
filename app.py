@@ -235,26 +235,30 @@ def forecast():
                 "error": "Need at least 3 records",
                 "labels": [],
                 "history_actual": [],
-                "future_3_months": []
+                "future_bill": []
             })
 
-        # ===== HISTORY =====
-        history = data_store["Consumption"].tolist()
+        # sort data
+        df = data_store.sort_values(["Year", "Month"]).reset_index(drop=True)
 
+        history_bill = df["Bill"].tolist()
+
+        # features (time index + month)
         X = np.column_stack([
-            np.arange(len(history)),
-            (data_store["Month"] % 12 + 1)
+            np.arange(len(df)),
+            df["Month"].values
         ])
 
+        # train model prediction (bill-based assumption)
         history_pred = model.predict(X).tolist()
 
-        # ===== FUTURE =====
-        last_index = len(history)
-        last_month = int(data_store["Month"].iloc[-1])
+        # future prediction (3 months)
+        last_index = len(df)
+        last_month = int(df["Month"].iloc[-1])
 
         future_X = []
         future_labels = []
-        future_values = []
+        future_bill = []
 
         for i in range(3):
             idx = last_index + i
@@ -263,13 +267,13 @@ def forecast():
             future_X.append([idx, month])
             future_labels.append(f"F{i+1}")
 
-        future_values = model.predict(np.array(future_X)).tolist()
+        future_bill = model.predict(np.array(future_X)).tolist()
 
         return jsonify({
-            "labels": [f"M{i+1}" for i in range(len(history))] + future_labels,
-            "history_actual": history,
+            "labels": [f"{r.Year}-{r.Month}" for _, r in df.iterrows()] + future_labels,
+            "history_actual": history_bill,
             "history_predicted": history_pred,
-            "future_3_months": future_values
+            "future_bill": future_bill
         })
 
     except Exception as e:
@@ -277,8 +281,10 @@ def forecast():
             "error": str(e),
             "labels": [],
             "history_actual": [],
-            "future_3_months": []
-        })# =========================
+            "future_bill": []
+        })
+
+# =========================
 # ANOMALY
 # =========================
 @app.route("/api/anomaly")
