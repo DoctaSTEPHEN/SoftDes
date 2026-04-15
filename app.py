@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import io
+from datetime import datetime, timedelta
 
 app = Flask(__name__)
 CORS(app)
@@ -18,9 +19,6 @@ except:
     model = GradientBoostingRegressor()
     model.fit([[0, 1], [1, 2], [2, 3]], [100, 120, 140])
 
-# =========================
-# DATA STORAGE
-# =========================
 data_store = pd.DataFrame(columns=["Year", "Month", "Consumption", "Bill"])
 
 # =========================
@@ -31,12 +29,19 @@ def home():
     return render_template("index.html")
 
 # =========================
-# ADD RECORD
+# ADD RECORD (ERROR HANDLING)
 # =========================
 @app.route("/api/add", methods=["POST"])
 def add_record():
     global data_store
     data = request.json
+
+    required = ["Year", "Month", "Consumption", "Bill"]
+
+    # missing entry validation
+    for r in required:
+        if r not in data or data[r] in ["", None]:
+            return jsonify({"error": f"Missing entry value: {r}"}), 400
 
     try:
         row = {
@@ -50,45 +55,37 @@ def add_record():
 
         return jsonify({"message": "added", "rows": len(data_store)})
 
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
+    except:
+        return jsonify({"error": "Invalid input format"}), 400
 
 # =========================
-# GET DATA
-# =========================
-@app.route("/api/data")
-def get_data():
-    return jsonify(data_store.to_dict("records"))
-
-# =========================
-# DASHBOARD
-# =========================
-@app.route("/api/dashboard")
-def dashboard():
-    if data_store.empty:
-        return jsonify({"total": 0, "avg": 0, "bill": 0})
-
-    return jsonify({
-        "total": float(data_store["Consumption"].sum()),
-        "avg": float(data_store["Consumption"].mean()),
-        "bill": float(data_store["Bill"].sum())
-    })
-
-# =========================
-# UPLOAD FIXED
+# UPLOAD (FULL ERROR HANDLING)
 # =========================
 @app.route("/api/upload", methods=["POST"])
 def upload():
     global data_store
 
     try:
+        if "file" not in request.files:
+            return jsonify({"error": "Missing file upload"}), 400
+
         file = request.files["file"]
+
+        if file.filename == "":
+            return jsonify({"error": "Missing file upload"}), 400
+
+        if not (file.filename.endswith(".csv") or file.filename.endswith(".json")):
+            return jsonify({"error": "Unsupported file upload"}), 400
+
         content = file.read()
 
         try:
             df = pd.read_csv(io.BytesIO(content))
         except:
-            df = pd.read_json(io.BytesIO(content))
+            try:
+                df = pd.read_json(io.BytesIO(content))
+            except:
+                return jsonify({"error": "Unsupported file upload"}), 400
 
         df.columns = [c.strip().lower() for c in df.columns]
 
@@ -104,6 +101,9 @@ def upload():
         c = find(["consumption"])
         b = find(["bill"])
 
+        if not all([y, m, c, b]):
+            return jsonify({"error": "Missing required columns"}), 400
+
         df = df[[y, m, c, b]]
         df.columns = ["Year", "Month", "Consumption", "Bill"]
 
@@ -115,45 +115,7 @@ def upload():
         return jsonify({"error": str(e)}), 500
 
 # =========================
-# FORECAST (BILL ONLY)
-# =========================
-@app.route("/api/forecast")
-def forecast():
-    if data_store.empty or len(data_store) < 3:
-        return jsonify({"error": "Need at least 3 records"})
-
-    df = data_store.sort_values(["Year", "Month"]).reset_index(drop=True)
-
-    history_bill = df["Bill"].tolist()
-
-    X = np.column_stack([
-        np.arange(len(df)),
-        df["Month"].values
-    ])
-
-    last_index = len(df)
-    last_month = int(df["Month"].iloc[-1])
-
-    future_X = []
-    labels = []
-
-    for i in range(3):
-        idx = last_index + i
-        month = ((last_month + i - 1) % 12) + 1
-
-        future_X.append([idx, month])
-        labels.append(f"F{i+1}")
-
-    future_bill = model.predict(np.array(future_X)).tolist()
-
-    return jsonify({
-        "labels": [f"{r.Year}-{r.Month}" for _, r in df.iterrows()] + labels,
-        "history_actual": history_bill,
-        "future_bill": future_bill
-    })
-
-# =========================
-# ANOMALY
+# ANOMALY API
 # =========================
 @app.route("/api/anomaly")
 def anomaly():
@@ -162,7 +124,6 @@ def anomaly():
 
     mean = data_store["Consumption"].mean()
     std = data_store["Consumption"].std()
-
     threshold = mean + 2 * std if std > 0 else mean
 
     df = data_store.copy()
@@ -173,33 +134,66 @@ def anomaly():
     return jsonify(df.to_dict("records"))
 
 # =========================
-# RESET ALL DATA
+# MAINTENANCE CALCULATOR
+# =========================
+@app.route("/api/maintenance", methods=["POST"])
+def maintenance():
+    data = request.json
+
+    try:
+        date_str = data.get("date")  # format: YYYY-MM-DD
+        base_date = datetime.strptime(date_str, "%Y-%m-%d")
+
+        next_maintenance = base_date + timedelta(days=90)
+
+        return jsonify({
+            "next_maintenance": next_maintenance.strftime("%Y-%m-%d")
+        })
+
+    except:
+        return jsonify({"error": "Invalid date format (use YYYY-MM-DD)"}), 400
+
+# =========================
+# FORECAST (BILL ONLY)
+# =========================
+@app.route("/api/forecast")
+def forecast():
+    if data_store.empty or len(data_store) < 3:
+        return jsonify({"error": "Need at least 3 records"})
+
+    df = data_store.sort_values(["Year", "Month"]).reset_index(drop=True)
+
+    history = df["Bill"].tolist()
+
+    X = np.column_stack([np.arange(len(df)), df["Month"].values])
+
+    last_month = int(df["Month"].iloc[-1])
+    last_index = len(df)
+
+    future_X = []
+    labels = []
+
+    for i in range(3):
+        month = ((last_month + i - 1) % 12) + 1
+        future_X.append([last_index + i, month])
+        labels.append(f"F{i+1}")
+
+    future = model.predict(np.array(future_X)).tolist()
+
+    return jsonify({
+        "labels": [f"{r.Year}-{r.Month}" for _, r in df.iterrows()] + labels,
+        "history_actual": history,
+        "future_bill": future
+    })
+
+# =========================
+# RESET
 # =========================
 @app.route("/api/reset", methods=["POST"])
 def reset():
     global data_store
     data_store = data_store.iloc[0:0]
-    return jsonify({"message": "All data cleared"})
+    return jsonify({"message": "reset done"})
 
-# =========================
-# DELETE ONE ROW
-# =========================
-@app.route("/api/delete", methods=["POST"])
-def delete():
-    global data_store
-    data = request.json
-
-    data_store = data_store[
-        ~(
-            (data_store["Year"] == int(data["Year"])) &
-            (data_store["Month"] == int(data["Month"]))
-        )
-    ]
-
-    return jsonify({"message": "Deleted"})
-
-# =========================
-# RUN
-# =========================
 if __name__ == "__main__":
     app.run(debug=True)
