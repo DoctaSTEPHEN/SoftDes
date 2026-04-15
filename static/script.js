@@ -66,36 +66,54 @@ function clearInputs() {
 }
 
 async function uploadFile() {
-    const file = document.getElementById("file").files[0];
+    const fileInput = document.getElementById("file");
+    const file = fileInput.files[0];
+    
+    console.log("🚀 Upload clicked, file:", file?.name);  // Debug
+    
     if (!file) {
-        notify("❌ Please select a file");
+        notify("❌ Please select a file first");
         return;
     }
 
+    // Show loading
+    const button = event.target;
+    const originalText = button.innerHTML;
+    button.innerHTML = "⏳ Uploading...";
+    button.disabled = true;
+
     const formData = new FormData();
     formData.append("file", file);
+    
+    // Add progress tracking
+    notify(`📤 Uploading ${file.name}...`);
 
     try {
+        console.log("📡 Sending request...");
         const res = await fetch("/api/upload", {
             method: "POST",
             body: formData
         });
 
+        console.log("📥 Response status:", res.status);
         const data = await res.json();
+        console.log("📊 Response data:", data);
 
         if (data.error) {
-            notify("❌ ERROR: " + data.error);
-            return;
+            notify(`❌ ${data.error}`);
+        } else {
+            notify(`✅ Success! ${data.rows_added} rows added`);
+            fileInput.value = "";  // Clear file input
+            refreshAll();
         }
-
-        notify(`✅ Upload successful: ${data.rows} rows`);
-        document.getElementById("file").value = "";
-        refreshAll();
-    } catch (e) {
-        notify("❌ Upload failed");
+    } catch (error) {
+        console.error("💥 Upload error:", error);
+        notify(`❌ Network error: ${error.message}`);
+    } finally {
+        button.innerHTML = originalText;
+        button.disabled = false;
     }
 }
-
 async function loadDashboard() {
     try {
         const res = await fetch("/api/dashboard");
