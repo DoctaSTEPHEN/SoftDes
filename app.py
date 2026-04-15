@@ -4,21 +4,29 @@ import numpy as np
 import os
 import joblib
 from datetime import datetime
+from pymongo import MongoClient
 
 app = Flask(__name__)
 
+# =============================
+# CONFIG
+# =============================
 DATA_PATH = "data/storage.csv"
 
-# -----------------------------
-# LOAD MODEL
-# -----------------------------
 model = joblib.load("model/gb_model.pkl")
 
+# MongoDB (optional but connected)
+MONGO_URI = os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client["water_db"]
+collection = db["records"]
 
-# -----------------------------
+# =============================
 # INIT STORAGE
-# -----------------------------
+# =============================
 def init_storage():
+    os.makedirs("data", exist_ok=True)
+
     if not os.path.exists(DATA_PATH):
         df = pd.DataFrame(columns=[
             "Year", "Month", "Consumption", "Bill", "Branch", "DateAdded"
@@ -27,49 +35,39 @@ def init_storage():
 
 init_storage()
 
-
-# -----------------------------
-# LOAD DATA
-# -----------------------------
+# =============================
+# LOAD / SAVE CSV
+# =============================
 def load_data():
     return pd.read_csv(DATA_PATH)
-
 
 def save_data(df):
     df.to_csv(DATA_PATH, index=False)
 
-
-# -----------------------------
+# =============================
 # DASHBOARD
-# -----------------------------
-@app.route("/dashboard", methods=["GET"])
+# =============================
+@app.route("/dashboard")
 def dashboard():
     df = load_data()
 
     if df.empty:
         return jsonify({"message": "No data yet"})
 
-    total_usage = df["Consumption"].sum()
-    avg_usage = df["Consumption"].mean()
-    total_bill = df["Bill"].sum()
-
     return jsonify({
-        "total_usage": total_usage,
-        "avg_usage": avg_usage,
-        "total_bill": total_bill,
+        "total_usage": df["Consumption"].sum(),
+        "avg_usage": df["Consumption"].mean(),
+        "total_bill": df["Bill"].sum(),
         "entries": len(df)
     })
 
-
-# -----------------------------
-# RECORD (MANUAL INPUT)
-# -----------------------------
+# =============================
+# ADD RECORD (CSV + MongoDB sync)
+# =============================
 @app.route("/record/manual", methods=["POST"])
 def add_record():
     try:
         data = request.json
-
-        df = load_data()
 
         new_entry = {
             "Year": data["Year"],
@@ -77,22 +75,25 @@ def add_record():
             "Consumption": data["Consumption"],
             "Bill": data["Bill"],
             "Branch": data.get("Branch", "Main"),
-            "DateAdded": datetime.now()
+            "DateAdded": datetime.now().isoformat()
         }
 
+        # ---- CSV save ----
+        df = load_data()
         df = pd.concat([df, pd.DataFrame([new_entry])], ignore_index=True)
-
         save_data(df)
 
-        return jsonify({"message": "Record added successfully"})
+        # ---- MongoDB save ----
+        collection.insert_one(new_entry)
+
+        return jsonify({"message": "Record added (CSV + MongoDB)"}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# -----------------------------
-# RECORD (UPLOAD CSV)
-# -----------------------------
+# =============================
+# UPLOAD CSV
+# =============================
 @app.route("/record/upload", methods=["POST"])
 def upload_file():
     try:
@@ -100,29 +101,28 @@ def upload_file():
         df_new = pd.read_csv(file)
 
         df = load_data()
-
         df = pd.concat([df, df_new], ignore_index=True)
-
         save_data(df)
 
-        return jsonify({"message": "File uploaded successfully"})
+        # sync to MongoDB
+        collection.insert_many(df_new.to_dict(orient="records"))
+
+        return jsonify({"message": "File uploaded successfully (synced to DB)"})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# -----------------------------
-# REPORTS (GET ALL DATA)
-# -----------------------------
-@app.route("/reports", methods=["GET"])
+# =============================
+# REPORTS
+# =============================
+@app.route("/reports")
 def get_reports():
     df = load_data()
     return df.to_json(orient="records")
 
-
-# -----------------------------
-# DELETE RECORD
-# -----------------------------
+# =============================
+# DELETE
+# =============================
 @app.route("/reports/delete/<int:index>", methods=["DELETE"])
 def delete_record(index):
     df = load_data()
@@ -135,15 +135,13 @@ def delete_record(index):
 
     return jsonify({"message": "Deleted successfully"})
 
-
-# -----------------------------
-# UPDATE RECORD
-# -----------------------------
+# =============================
+# UPDATE
+# =============================
 @app.route("/reports/update/<int:index>", methods=["PUT"])
 def update_record(index):
     try:
         df = load_data()
-
         data = request.json
 
         df.loc[index, "Consumption"] = data["Consumption"]
@@ -152,15 +150,13 @@ def update_record(index):
         save_data(df)
 
         return jsonify({"message": "Updated successfully"})
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
-# -----------------------------
-# FORECAST
-# -----------------------------
-@app.route("/forecast", methods=["GET"])
+# =============================
+# FORECAST (ML MODEL)
+# =============================
+@app.route("/forecast")
 def forecast_data():
     df = load_data()
 
@@ -176,13 +172,15 @@ def forecast_data():
 
     preds = model.predict(X)
 
-    return jsonify({"forecast": preds.tolist()})
+    return jsonify({
+        "forecast": preds.tolist(),
+        "next_month": float(preds[-1])
+    })
 
-
-# -----------------------------
+# =============================
 # VISUALIZATION DATA
-# -----------------------------
-@app.route("/visualize", methods=["GET"])
+# =============================
+@app.route("/visualize")
 def visualize():
     df = load_data()
 
@@ -192,27 +190,30 @@ def visualize():
         "bill": df["Bill"].tolist()
     })
 
-
-# -----------------------------
-# ANOMALY DETECTION
-# -----------------------------
-@app.route("/anomaly", methods=["GET"])
+# =============================
+# ANOMALY DETECTION (IMPROVED)
+# =============================
+@app.route("/anomaly")
 def anomaly():
     df = load_data()
 
-    avg = df["Consumption"].mean()
+    if df.empty:
+        return jsonify({"error": "No data"})
 
-    flags = [
-        "Anomaly" if x > avg * 1.5 else "Normal"
-        for x in df["Consumption"]
-    ]
+    mean = df["Consumption"].mean()
+    std = df["Consumption"].std()
 
-    return jsonify(flags)
+    threshold = mean + (1.5 * std)
 
+    df["status"] = df["Consumption"].apply(
+        lambda x: "Anomaly" if x > threshold else "Normal"
+    )
 
-# -----------------------------
+    return jsonify(df[["Month", "Consumption", "status"]].to_dict(orient="records"))
+
+# =============================
 # RUN
-# -----------------------------
+# =============================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
