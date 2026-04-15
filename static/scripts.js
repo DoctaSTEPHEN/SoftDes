@@ -138,33 +138,65 @@ async function loadChart() {
     const res = await fetch(`${BASE_URL}/api/forecast`);
     const d = await res.json();
 
-    if (!d.history_actual) return;
+    if (!d.history_actual || d.history_actual.length === 0) return;
 
     const ctx = document.getElementById("chart").getContext("2d");
 
     if (chartInstance) chartInstance.destroy();
 
+    const historyLen = d.history_actual.length;
+
+    // labels: real months + future labels
+    const labels = [
+        ...Array(historyLen).fill("").map((_, i) => `M${i + 1}`),
+        "F1", "F2", "F3"
+    ];
+
     chartInstance = new Chart(ctx, {
         type: "line",
         data: {
-            labels: d.labels,
+            labels: labels,
+
             datasets: [
+                // ======================
+                // ACTUAL (FIXED)
+                // ======================
                 {
                     label: "Actual Bill",
-                    data: d.history_actual.concat(Array(d.future_bill.length).fill(null)),
-                    borderColor: "#2196F3"
+                    data: d.history_actual,
+                    borderColor: "#2196F3",
+                    tension: 0.4,
+                    pointRadius: 4
                 },
+
+                // ======================
+                // FORECAST (SHIFTED)
+                // ======================
                 {
                     label: "Forecast Bill",
-                    data: Array(d.history_actual.length).fill(null).concat(d.future_bill),
+                    data: [
+                        ...Array(historyLen).fill(null),
+                        ...d.future_bill
+                    ],
                     borderColor: "#FF5722",
-                    borderDash: [5, 5]
+                    borderDash: [5, 5],
+                    tension: 0.4,
+                    pointRadius: 4
                 }
             ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            spanGaps: false,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
         }
     });
 }
-
 // =========================
 // ANOMALY (WITH POPUP)
 // =========================
