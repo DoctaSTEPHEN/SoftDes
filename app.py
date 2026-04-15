@@ -91,6 +91,42 @@ def add_record():
         return jsonify({"error": "Invalid input format"}), 400
 
 # =========================
+# DASHBOARD (NEW - ADD THIS)
+# =========================
+@app.route("/api/dashboard")
+def dashboard():
+    if data_store.empty:
+        return jsonify({
+            "total": 0,
+            "avg": 0,
+            "bill": 0,
+            "records": 0
+        })
+    
+    total_consumption = data_store["Consumption"].sum()
+    avg_consumption = data_store["Consumption"].mean()
+    total_bill = data_store["Bill"].sum()
+    
+    return jsonify({
+        "total": total_consumption,
+        "avg": avg_consumption,
+        "bill": total_bill,
+        "records": len(data_store)
+    })
+
+# =========================
+# DATA (NEW - ADD THIS) 
+# =========================
+@app.route("/api/data")
+def get_data():
+    if data_store.empty:
+        return jsonify([])
+    
+    # Return all records sorted by date
+    df = data_store.sort_values(["Year", "Month"]).reset_index(drop=True)
+    return jsonify(df.to_dict("records"))
+
+# =========================
 # UPLOAD (FULL ERROR HANDLING)
 # =========================
 @app.route("/api/upload", methods=["POST"])
