@@ -1,35 +1,79 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Water Forecast</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Water Forecasting System</title>
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-<h2>Water Forecast System</h2>
+<div class="container">
 
-<!-- JSON INPUT -->
-<h3>JSON Input</h3>
-<textarea id="jsonInput"></textarea>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <h2>Menu</h2>
+        <button onclick="showPage('dashboard')">Dashboard</button>
+        <button onclick="showPage('record')">Record</button>
+        <button onclick="showPage('visualize')">Visualize</button>
+        <button onclick="showPage('reports')">Reports</button>
+    </div>
 
-<!-- CSV INPUT -->
-<h3>Upload CSV</h3>
-<input type="file" id="csvFile">
+    <!-- MAIN CONTENT -->
+    <div class="content">
 
-<!-- Maintenance input -->
-<h3>Maintenance Month (1–12)</h3>
-<input type="number" id="maintenanceMonth" min="1" max="12">
+        <!-- DASHBOARD -->
+        <div id="dashboard" class="page">
+            <h2>Dashboard</h2>
+            <p>Total Usage: <span id="total_usage">--</span></p>
+            <p>Average Usage: <span id="avg_usage">--</span></p>
+            <p>Total Bill: <span id="total_bill">--</span></p>
+        </div>
 
-<br><br>
-<button onclick="sendData()">Forecast</button>
+        <!-- RECORD -->
+        <div id="record" class="page hidden">
+            <h2>Record Data</h2>
 
-<h3>Result:</h3>
-<pre id="result"></pre>
+            <h3>Manual Entry</h3>
+            <input type="number" id="year" placeholder="Year">
+            <input type="number" id="month" placeholder="Month">
+            <input type="number" id="consumption" placeholder="Consumption">
+            <input type="number" id="bill" placeholder="Bill">
+            <input type="text" id="branch" placeholder="Branch">
+            <button onclick="addRecord()">Add</button>
 
-<canvas id="chart" width="400" height="200"></canvas>
+            <h3>Upload CSV</h3>
+            <input type="file" id="file">
+            <button onclick="uploadFile()">Upload</button>
+        </div>
+
+        <!-- VISUALIZE -->
+        <div id="visualize" class="page hidden">
+            <h2>Visualization</h2>
+            <canvas id="chart"></canvas>
+        </div>
+
+        <!-- REPORTS -->
+        <div id="reports" class="page hidden">
+            <h2>Reports</h2>
+            <table border="1">
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Usage</th>
+                        <th>Bill</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="reportTable"></tbody>
+            </table>
+        </div>
+
+    </div>
+
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="{{ url_for('static', filename='script.js') }}"></script>
+<script src="script.js"></script>
 
 </body>
 </html>
