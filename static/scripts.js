@@ -155,53 +155,62 @@ async function loadForecast() {
 // CHART
 // =============================
 let chart;
+let chartInstance;
 
 async function loadChart() {
     try {
-        const res = await fetch(`${BASE_URL}/api/forecast`);
+        const res = await fetch("/api/forecast");
         const data = await res.json();
 
-        if (data.error) return;
+        if (data.error || !data.history_actual.length) return;
 
         const ctx = document.getElementById("chart").getContext("2d");
 
-        if (chart) chart.destroy();
+        if (chartInstance) chartInstance.destroy();
 
-        const labels = [
-            ...data.history_actual.map((_, i) => `M${i+1}`),
-            "F1","F2","F3"
-        ];
+        const history = data.history_actual;
+        const forecast = data.future_3_months;
+        const labels = data.labels;
 
-        chart = new Chart(ctx, {
+        chartInstance = new Chart(ctx, {
             type: "line",
             data: {
                 labels: labels,
                 datasets: [
                     {
                         label: "Actual",
-                        data: [...data.history_actual, null, null, null],
-                        borderColor: "#2196F3"
+                        data: history.concat(Array(forecast.length).fill(null)),
+                        borderColor: "#2196F3",
+                        tension: 0.4
                     },
                     {
                         label: "Predicted",
-                        data: [...data.history_predicted, null, null, null],
-                        borderColor: "#4CAF50"
+                        data: data.history_predicted.concat(Array(forecast.length).fill(null)),
+                        borderColor: "#4CAF50",
+                        tension: 0.4
                     },
                     {
                         label: "Forecast",
-                        data: [null,null,null,...data.future_3_months],
+                        data: Array(history.length).fill(null).concat(forecast),
                         borderColor: "#FF5722",
-                        borderDash: [5,5]
+                        borderDash: [5, 5],
+                        tension: 0.4
                     }
                 ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true }
+                }
             }
         });
 
-    } catch {
-        console.log("Chart error");
+    } catch (e) {
+        console.error("Chart error:", e);
     }
 }
-
 // =============================
 // ANOMALY
 // =============================
