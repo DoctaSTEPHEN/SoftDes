@@ -3,26 +3,23 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 import joblib
-import os
 import io
 
 app = Flask(__name__)
 CORS(app)
 
 # =========================
-# LOAD MODEL
+# MODEL
 # =========================
 try:
     model = joblib.load("model/gb_model.pkl")
-    print("✅ Model loaded")
 except:
     from sklearn.ensemble import GradientBoostingRegressor
     model = GradientBoostingRegressor()
     model.fit([[0, 1], [1, 2], [2, 3]], [100, 120, 140])
-    print("⚠️ Dummy trained model used")
 
 # =========================
-# DATA STORE
+# DATA STORAGE
 # =========================
 data_store = pd.DataFrame(columns=["Year", "Month", "Consumption", "Bill"])
 
@@ -42,14 +39,14 @@ def add_record():
     data = request.json
 
     try:
-        new_row = {
+        row = {
             "Year": int(data["Year"]),
             "Month": int(data["Month"]),
             "Consumption": float(data["Consumption"]),
             "Bill": float(data["Bill"])
         }
 
-        data_store = pd.concat([data_store, pd.DataFrame([new_row])], ignore_index=True)
+        data_store = pd.concat([data_store, pd.DataFrame([row])], ignore_index=True)
 
         return jsonify({"message": "added", "rows": len(data_store)})
 
@@ -95,17 +92,17 @@ def upload():
 
         df.columns = [c.strip().lower() for c in df.columns]
 
-        def find(col_list):
+        def find(names):
             for c in df.columns:
-                for n in col_list:
+                for n in names:
                     if n in c:
                         return c
             return None
 
         y = find(["year"])
         m = find(["month"])
-        c = find(["consumption", "usage"])
-        b = find(["bill", "amount"])
+        c = find(["consumption"])
+        b = find(["bill"])
 
         df = df[[y, m, c, b]]
         df.columns = ["Year", "Month", "Consumption", "Bill"]
@@ -169,9 +166,37 @@ def anomaly():
     threshold = mean + 2 * std if std > 0 else mean
 
     df = data_store.copy()
-    df["status"] = df["Consumption"].apply(lambda x: "ANOMALY" if x > threshold else "NORMAL")
+    df["status"] = df["Consumption"].apply(
+        lambda x: "ANOMALY" if x > threshold else "NORMAL"
+    )
 
     return jsonify(df.to_dict("records"))
+
+# =========================
+# RESET ALL DATA
+# =========================
+@app.route("/api/reset", methods=["POST"])
+def reset():
+    global data_store
+    data_store = data_store.iloc[0:0]
+    return jsonify({"message": "All data cleared"})
+
+# =========================
+# DELETE ONE ROW
+# =========================
+@app.route("/api/delete", methods=["POST"])
+def delete():
+    global data_store
+    data = request.json
+
+    data_store = data_store[
+        ~(
+            (data_store["Year"] == int(data["Year"])) &
+            (data_store["Month"] == int(data["Month"]))
+        )
+    ]
+
+    return jsonify({"message": "Deleted"})
 
 # =========================
 # RUN
