@@ -27,11 +27,16 @@
 <!-- ========================= -->
 <!-- UPLOAD -->
 <!-- ========================= -->
+<!-- Replace the upload card -->
 <div class="card">
-    <h3>Upload CSV / JSON</h3>
-
-    <input type="file" id="file">
-    <button onclick="uploadFile()">Upload File</button>
+    <h3>Upload CSV/JSON</h3>
+    <input type="file" id="file" accept=".csv,.json" style="margin: 10px auto; display: block;">
+    <p style="font-size: 12px; color: #666;">
+        Columns: Year, Month, Consumption, Bill
+    </p>
+    <button onclick="uploadFile()" style="background: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
+         Upload File
+    </button>
 </div>
 
 <!-- ========================= -->
