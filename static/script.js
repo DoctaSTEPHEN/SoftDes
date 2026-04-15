@@ -1,46 +1,50 @@
-const BASE_URL = window.location.origin.includes("render.com") ? 
-    "https://softdes-2.onrender.com" : 
-    window.location.origin;
+// =============================
+// BASE URL (AUTO)
+// =============================
+const BASE_URL = window.location.origin;
 
-async function refreshAll() {
-    console.log("🔄 Refreshing...");
-    await loadDashboard();
-    await loadForecast();
-    await loadChart();
-    await checkAnomaly();
-}
+// =============================
+// NOTIFICATION SYSTEM
+// =============================
+function notify(msg, type = "success") {
+    const div = document.createElement("div");
+    div.innerText = msg;
 
-function notify(msg) {
-    // Better notification
-    const notification = document.createElement("div");
-    notification.style.cssText = `
-        position: fixed; top: 20px; right: 20px; 
-        background: #4CAF50; color: white; padding: 15px; 
-        border-radius: 5px; z-index: 1000; font-weight: bold;
+    div.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 12px 18px;
+        border-radius: 8px;
+        color: white;
+        font-weight: bold;
+        z-index: 999;
+        background: ${type === "error" ? "#e74c3c" : "#2ecc71"};
     `;
-    notification.textContent = msg;
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        document.body.removeChild(notification);
-    }, 3000);
+
+    document.body.appendChild(div);
+
+    setTimeout(() => div.remove(), 2500);
 }
 
+// =============================
+// ADD RECORD
+// =============================
 async function addRecord() {
     const data = {
-        Year: parseInt(year.value),
-        Month: parseInt(month.value),
-        Consumption: parseFloat(consumption.value),
-        Bill: parseFloat(bill.value)
+        Year: parseInt(document.getElementById("year").value),
+        Month: parseInt(document.getElementById("month").value),
+        Consumption: parseFloat(document.getElementById("consumption").value),
+        Bill: parseFloat(document.getElementById("bill").value)
     };
 
     if (!data.Year || !data.Month || !data.Consumption || !data.Bill) {
-        notify("❌ Please fill all fields");
+        notify("Fill all fields", "error");
         return;
     }
 
     try {
-        const res = await fetch("/api/add", {
+        const res = await fetch(`${BASE_URL}/api/add`, {
             method: "POST",
             headers: {"Content-Type": "application/json"},
             body: JSON.stringify(data)
@@ -49,128 +53,126 @@ async function addRecord() {
         const result = await res.json();
 
         if (result.error) {
-            notify("❌ ERROR: " + result.error);
+            notify(result.error, "error");
             return;
         }
 
-        notify("✅ Record added!");
-        refreshAll();
+        notify("Record added");
         clearInputs();
-    } catch (e) {
-        notify("❌ Network error");
+        refreshAll();
+
+    } catch (err) {
+        notify("Network error", "error");
     }
 }
 
+// =============================
+// CLEAR INPUTS
+// =============================
 function clearInputs() {
-    year.value = month.value = consumption.value = bill.value = "";
+    ["year","month","consumption","bill"].forEach(id => {
+        document.getElementById(id).value = "";
+    });
 }
 
-async function uploadFile(event) {
+// =============================
+// FILE UPLOAD
+// =============================
+async function uploadFile() {
     const fileInput = document.getElementById("file");
     const file = fileInput.files[0];
-    
-    console.log("🚀 Upload clicked, file:", file?.name);
-    
+
     if (!file) {
-        notify("❌ Please select a file first");
+        notify("Select a file", "error");
         return;
     }
 
-    // Show loading
-    const button = event?.target;
-    const button = document.querySelector('button[onclick="uploadFile()"]');
-    const originalText = button.innerHTML;
-    button.innerHTML = "⏳ Uploading...";
-    button.disabled = true;
-
     const formData = new FormData();
     formData.append("file", file);
-    
-    notify(`📤 Uploading ${file.name}...`);
+
+    notify("Uploading...");
 
     try {
-        const res = await fetch("/api/upload", {
+        const res = await fetch(`${BASE_URL}/api/upload`, {
             method: "POST",
             body: formData
         });
 
         const data = await res.json();
-        console.log("📊 Upload result:", data);
 
         if (data.error) {
-            notify(`❌ ${data.error}`);
+            notify(data.error, "error");
         } else {
-            notify(`✅ Success! ${data.rows_added || data.rows} rows added`);
-            
-            // 🔥 CLEAR FILE INPUT - READY FOR NEXT UPLOAD
-            fileInput.value = "";  // Reset file input
-            console.log("🧹 File input cleared");
-            
-            // Auto refresh everything
+            notify(`Uploaded ${data.rows_added || data.rows}`);
+            fileInput.value = "";
             refreshAll();
         }
-    } catch (error) {
-        console.error("💥 Upload error:", error);
-        notify(`❌ Network error: ${error.message}`);
-    } finally {
-        // Reset button
-        button.innerHTML = originalText;
-        button.disabled = false;
+
+    } catch (err) {
+        notify("Upload failed", "error");
     }
 }
+
+// =============================
+// DASHBOARD
+// =============================
 async function loadDashboard() {
     try {
-        const res = await fetch("/api/dashboard");
+        const res = await fetch(`${BASE_URL}/api/dashboard`);
         const data = await res.json();
 
         document.getElementById("total").innerText = data.total?.toFixed(1) || 0;
         document.getElementById("avg").innerText = data.avg?.toFixed(1) || 0;
         document.getElementById("bill_total").innerText = data.bill?.toFixed(1) || 0;
-    } catch (e) {
-        console.error("Dashboard error:", e);
+
+    } catch {
+        console.log("Dashboard error");
     }
 }
 
+// =============================
+// FORECAST
+// =============================
 async function loadForecast() {
     try {
-        const res = await fetch("/api/forecast");
+        const res = await fetch(`${BASE_URL}/api/forecast`);
         const data = await res.json();
 
         if (data.error) {
-            document.getElementById("forecast").innerHTML = 
-                `<span style="color: orange;">${data.error}</span>`;
+            document.getElementById("forecast").innerHTML = data.error;
             return;
         }
 
-        document.getElementById("forecast").innerHTML = `
-            <h4>Next 3 Months</h4>
-            <b>${data.future_3_months.map(v => v.toFixed(1)).join(" → ")} m³</b>
-        `;
-    } catch (e) {
-        document.getElementById("forecast").innerHTML = "Loading...";
+        document.getElementById("forecast").innerHTML =
+            `<b>${data.future_3_months.map(v => v.toFixed(1)).join(" → ")} m³</b>`;
+
+    } catch {
+        document.getElementById("forecast").innerText = "Error loading";
     }
 }
 
-let chartInstance;
+// =============================
+// CHART
+// =============================
+let chart;
+
 async function loadChart() {
     try {
-        const res = await fetch("/api/forecast");
+        const res = await fetch(`${BASE_URL}/api/forecast`);
         const data = await res.json();
 
-        if (data.error || !data.history_actual.length) {
-            return;
-        }
+        if (data.error) return;
 
         const ctx = document.getElementById("chart").getContext("2d");
-        if (chartInstance) chartInstance.destroy();
 
-        const totalPoints = data.history_actual.length + 3;
-        const labels = Array.from({length: totalPoints}, (_, i) => 
-            i < data.history_actual.length ? 
-            `M${i+1}` : `F${i - data.history_actual.length + 1}`
-        );
+        if (chart) chart.destroy();
 
-        chartInstance = new Chart(ctx, {
+        const labels = [
+            ...data.history_actual.map((_, i) => `M${i+1}`),
+            "F1","F2","F3"
+        ];
+
+        chart = new Chart(ctx, {
             type: "line",
             data: {
                 labels: labels,
@@ -178,66 +180,95 @@ async function loadChart() {
                     {
                         label: "Actual",
                         data: [...data.history_actual, null, null, null],
-                        borderColor: "#2196F3",
-                        backgroundColor: "#2196F3",
-                        tension: 0.4,
-                        fill: false
+                        borderColor: "#2196F3"
                     },
                     {
-                        label: "Model Fit",
+                        label: "Predicted",
                         data: [...data.history_predicted, null, null, null],
-                        borderColor: "#4CAF50",
-                        backgroundColor: "#4CAF50",
-                        tension: 0.4,
-                        fill: false
+                        borderColor: "#4CAF50"
                     },
                     {
                         label: "Forecast",
-                        data: [null, null, null, ...data.future_3_months],
+                        data: [null,null,null,...data.future_3_months],
                         borderColor: "#FF5722",
-                        backgroundColor: "#FF5722",
-                        tension: 0.4,
-                        borderDash: [5, 5]
+                        borderDash: [5,5]
                     }
                 ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: { beginAtZero: true }
-                }
             }
         });
-    } catch (e) {
-        console.error("Chart error:", e);
+
+    } catch {
+        console.log("Chart error");
     }
 }
 
+// =============================
+// ANOMALY
+// =============================
 async function checkAnomaly() {
     try {
-        const res = await fetch("/api/anomaly");
+        const res = await fetch(`${BASE_URL}/api/anomaly`);
         const data = await res.json();
 
         const anomalies = data.filter(d => d.status === "ANOMALY");
-        
-        if (anomalies.length === 0) {
-            document.getElementById("anomaly").innerHTML = 
-                '<span style="color: green;">✅ No anomalies</span>';
-        } else {
-            document.getElementById("anomaly").innerHTML = 
-                anomalies.map(a => `⚠️ ${a.Year}-${a.Month.toString().padStart(2,'0')}: ${a.Consumption.toFixed(1)}m³`)
-                         .join("<br>");
+
+        const el = document.getElementById("anomaly");
+
+        if (!anomalies.length) {
+            el.innerHTML = "No anomalies";
+            return;
         }
-    } catch (e) {
-        document.getElementById("anomaly").innerHTML = "Loading...";
+
+        el.innerHTML = anomalies.map(a =>
+            `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
+        ).join("<br>");
+
+    } catch {
+        document.getElementById("anomaly").innerText = "Error";
     }
 }
 
-// Auto refresh every 30 seconds
-setInterval(refreshAll, 30000);
+// =============================
+// REPORTS TABLE
+// =============================
+async function loadReports() {
+    try {
+        const res = await fetch(`${BASE_URL}/api/data`);
+        const data = await res.json();
 
+        const table = document.getElementById("reportTable");
+        table.innerHTML = "";
+
+        data.forEach(d => {
+            table.innerHTML += `
+                <tr>
+                    <td>${d.Month}</td>
+                    <td>${d.Consumption}</td>
+                    <td>${d.Bill}</td>
+                </tr>
+            `;
+        });
+
+    } catch {
+        console.log("Report error");
+    }
+}
+
+// =============================
+// GLOBAL REFRESH
+// =============================
+async function refreshAll() {
+    await loadDashboard();
+    await loadForecast();
+    await loadChart();
+    await checkAnomaly();
+    await loadReports();
+}
+
+// =============================
+// AUTO LOAD
+// =============================
 window.onload = () => {
     refreshAll();
-    setTimeout(refreshAll, 2000); // Double check after load
+    setInterval(refreshAll, 30000);
 };
