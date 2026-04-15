@@ -1,8 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Water Forecasting System</title>
+    <meta charset="UTF-8">
+    <title>Water Monitoring System</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -11,10 +13,11 @@
 
     <!-- SIDEBAR -->
     <div class="sidebar">
-        <h2>Menu</h2>
+        <h2>💧 Water System</h2>
+
         <button onclick="showPage('dashboard')">Dashboard</button>
-        <button onclick="showPage('record')">Record</button>
-        <button onclick="showPage('visualize')">Visualize</button>
+        <button onclick="showPage('record')">Record Data</button>
+        <button onclick="showPage('visualize')">Charts</button>
         <button onclick="showPage('reports')">Reports</button>
     </div>
 
@@ -23,47 +26,64 @@
 
         <!-- DASHBOARD -->
         <div id="dashboard" class="page">
-            <h2>Dashboard</h2>
-            <p>Total Usage: <span id="total_usage">--</span></p>
-            <p>Average Usage: <span id="avg_usage">--</span></p>
-            <p>Total Bill: <span id="total_bill">--</span></p>
+            <h1>Dashboard</h1>
+
+            <div class="cards">
+                <div class="card">
+                    <h3>Total Usage</h3>
+                    <p id="total_usage">0</p>
+                </div>
+
+                <div class="card">
+                    <h3>Average Usage</h3>
+                    <p id="avg_usage">0</p>
+                </div>
+
+                <div class="card">
+                    <h3>Total Bill</h3>
+                    <p id="total_bill">0</p>
+                </div>
+            </div>
         </div>
 
         <!-- RECORD -->
         <div id="record" class="page hidden">
-            <h2>Record Data</h2>
+            <h1>Add Record</h1>
 
-            <h3>Manual Entry</h3>
-            <input type="number" id="year" placeholder="Year">
-            <input type="number" id="month" placeholder="Month">
-            <input type="number" id="consumption" placeholder="Consumption">
-            <input type="number" id="bill" placeholder="Bill">
-            <input type="text" id="branch" placeholder="Branch">
-            <button onclick="addRecord()">Add</button>
+            <input id="year" type="number" placeholder="Year">
+            <input id="month" type="number" placeholder="Month">
+            <input id="consumption" type="number" placeholder="Consumption">
+            <input id="bill" type="number" placeholder="Bill">
+            <input id="branch" type="text" placeholder="Branch">
 
-            <h3>Upload CSV</h3>
+            <button onclick="addRecord()">Submit</button>
+
+            <hr>
+
             <input type="file" id="file">
-            <button onclick="uploadFile()">Upload</button>
+            <button onclick="uploadFile()">Upload CSV</button>
         </div>
 
-        <!-- VISUALIZE -->
+        <!-- VISUALIZATION -->
         <div id="visualize" class="page hidden">
-            <h2>Visualization</h2>
+            <h1>Consumption Chart</h1>
             <canvas id="chart"></canvas>
         </div>
 
         <!-- REPORTS -->
         <div id="reports" class="page hidden">
-            <h2>Reports</h2>
-            <table border="1">
+            <h1>Reports</h1>
+
+            <table>
                 <thead>
                     <tr>
                         <th>Month</th>
-                        <th>Usage</th>
+                        <th>Consumption</th>
                         <th>Bill</th>
                         <th>Action</th>
                     </tr>
                 </thead>
+
                 <tbody id="reportTable"></tbody>
             </table>
         </div>
@@ -72,7 +92,6 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="script.js"></script>
 
 </body>
