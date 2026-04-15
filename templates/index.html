@@ -1,178 +1,220 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>Water System App</title>
+<meta charset="UTF-8">
+<title>Water System App</title>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            background: #F8F8F8;
-        }
+<style>
+/* KEEP YOUR DESIGN (unchanged mostly) */
+body { margin: 0; font-family: Inter, sans-serif; background: #F8F8F8; }
 
-        .container {
-            display: grid;
-            grid-template-columns: 300px 1fr;
-            gap: 20px;
-            padding: 20px;
-            height: 100vh;
-            box-sizing: border-box;
-        }
+.container {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 20px;
+    padding: 20px;
+    height: 100vh;
+}
 
-        .sidebar {
-            background: #fff;
-            border-radius: 25px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
+/* SIDEBAR */
+.sidebar {
+    background: #fff;
+    border-radius: 25px;
+    padding: 20px;
+}
 
-        .menu-item {
-            font-size: 18px;
-            font-weight: 700;
-            padding: 12px;
-            border-radius: 10px;
-            cursor: pointer;
-        }
+.menu-item {
+    font-size: 18px;
+    padding: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+}
+.menu-item.active { background: #4CA9AF; color: white; }
 
-        .menu-item.active {
-            background: #4CA9AF;
-            color: white;
-        }
+/* MAIN */
+.main { display: flex; flex-direction: column; gap: 20px; }
 
-        .main {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
+.topbar {
+    background: #fff;
+    border-radius: 25px;
+    padding: 20px;
+    font-size: 24px;
+    font-weight: bold;
+}
 
-        .topbar {
-            background: #fff;
-            border-radius: 20px;
-            padding: 20px;
-            font-size: 24px;
-            font-weight: 700;
-        }
+.page { display: none; }
+.page.active { display: flex; flex-direction: column; gap: 20px; }
 
-        .page { display: none; }
-        .page.active { display: block; }
+/* DASHBOARD */
+.graph-box {
+    background: #fff;
+    border-radius: 25px;
+    padding: 20px;
+}
 
-        .card {
-            background: white;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 15px;
-        }
+.bottom {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+}
 
-        input {
-            display: block;
-            margin: 5px 0;
-            padding: 8px;
-        }
+.box {
+    background: #fff;
+    border-radius: 25px;
+    padding: 20px;
+}
 
-        button {
-            padding: 10px;
-            cursor: pointer;
-        }
+/* RECORD */
+.card-box {
+    background: #fff;
+    border-radius: 25px;
+    padding: 20px;
+}
 
-        canvas {
-            max-height: 300px;
-        }
-    </style>
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+input { padding: 10px; }
+
+.btn-add {
+    background: #238086;
+    color: white;
+    padding: 10px;
+    border: none;
+    border-radius: 8px;
+}
+
+/* TABLE */
+table {
+    width: 100%;
+    background: white;
+    border-radius: 20px;
+}
+
+td, th { padding: 10px; }
+
+/* ANOMALY */
+#anomaly { font-size: 14px; }
+</style>
 </head>
 
 <body>
 
 <div class="container">
 
-    <!-- SIDEBAR -->
-    <div class="sidebar">
-        <div class="menu-item active" onclick="show('dashboard')">Dashboard</div>
-        <div class="menu-item" onclick="show('record')">Record</div>
-        <div class="menu-item" onclick="show('reports')">Reports</div>
+<!-- SIDEBAR -->
+<div class="sidebar">
+    <div class="menu-item active" onclick="show('dashboard-page', this)">Dashboard</div>
+    <div class="menu-item" onclick="show('record-page', this)">Record</div>
+    <div class="menu-item" onclick="show('reports-page', this)">Reports</div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+<div class="topbar" id="title">Dashboard</div>
+
+<!-- ================= DASHBOARD ================= -->
+<div class="page active" id="dashboard-page">
+
+    <div class="graph-box">
+        <canvas id="chart"></canvas>
     </div>
 
-    <!-- MAIN -->
-    <div class="main">
-
-        <div class="topbar" id="title">Dashboard</div>
-
-        <!-- DASHBOARD -->
-        <div class="page active" id="dashboard">
-
-            <div class="card">
-                <h3>Dashboard</h3>
-                <p>Total: <span id="total"></span></p>
-                <p>Avg: <span id="avg"></span></p>
-                <p>Bill: <span id="bill_total"></span></p>
-            </div>
-
-            <div class="card">
-                <h3>Forecast</h3>
-                <div id="forecast">Loading...</div>
-            </div>
-
-            <div class="card">
-                <h3>Chart</h3>
-                <canvas id="chart"></canvas>
-            </div>
-
-            <div class="card">
-                <h3>Anomalies</h3>
-                <div id="anomaly"></div>
-            </div>
-
+    <div class="bottom">
+        <div class="box">
+            <b>Total</b>
+            <div id="total"></div>
         </div>
 
-        <!-- RECORD -->
-        <div class="page" id="record">
-
-            <div class="card">
-                <h3>Add Record</h3>
-
-                <input id="year" placeholder="Year">
-                <input id="month" placeholder="Month">
-                <input id="consumption" placeholder="Consumption">
-                <input id="bill" placeholder="Bill">
-
-                <button onclick="addRecord()">Add</button>
-            </div>
-
-            <div class="card">
-                <h3>Upload CSV/JSON</h3>
-                <input type="file" id="file">
-                <button onclick="uploadFile()">Upload</button>
-            </div>
-
+        <div class="box">
+            <b>Average</b>
+            <div id="avg"></div>
         </div>
 
-        <!-- REPORTS -->
-        <div class="page" id="reports">
-            <div class="card">
-                <h3>Reports Table (placeholder)</h3>
-                <p>Connect backend list API here</p>
-            </div>
+        <div class="box">
+            <b>Total Bill</b>
+            <div id="bill_total"></div>
         </div>
-
     </div>
+
+    <div class="box">
+        <h3>Forecast</h3>
+        <div id="forecast"></div>
+    </div>
+
+    <div class="box">
+        <h3>Anomalies</h3>
+        <div id="anomaly"></div>
+    </div>
+
+</div>
+
+<!-- ================= RECORD ================= -->
+<div class="page" id="record-page">
+
+    <div class="card-box">
+        <h3>Upload File</h3>
+        <input type="file" id="file">
+        <button class="btn-add" onclick="uploadFile()">Upload</button>
+    </div>
+
+    <div class="card-box">
+        <h3>Add Record</h3>
+
+        <div class="grid">
+            <input id="year" placeholder="Year">
+            <input id="month" placeholder="Month">
+            <input id="consumption" placeholder="Consumption">
+            <input id="bill" placeholder="Bill">
+        </div>
+
+        <button class="btn-add" onclick="addRecord()">Add Record</button>
+    </div>
+
+</div>
+
+<!-- ================= REPORTS ================= -->
+<div class="page" id="reports-page">
+
+    <table>
+        <thead>
+            <tr>
+                <th>Month</th>
+                <th>Usage</th>
+                <th>Bill</th>
+            </tr>
+        </thead>
+        <tbody id="reportTable"></tbody>
+    </table>
+
+</div>
+
+</div>
 </div>
 
 <script src="/static/scripts.js"></script>
 
 <script>
-function show(page) {
+const titles = {
+    "dashboard-page": "Dashboard",
+    "record-page": "Record",
+    "reports-page": "Reports"
+};
+
+function show(pageId, el) {
+    document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.getElementById(page).classList.add('active');
+    document.getElementById(pageId).classList.add('active');
 
-    document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
-    event.target.classList.add('active');
-
-    document.getElementById("title").innerText =
-        page.charAt(0).toUpperCase() + page.slice(1);
+    document.getElementById("title").innerText = titles[pageId];
 }
 </script>
 
