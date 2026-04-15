@@ -8,22 +8,26 @@ from datetime import datetime
 app = Flask(__name__)
 
 # =========================
-# LOAD MODEL
+# MODEL
 # =========================
 model = joblib.load("model/gb_model.pkl")
 
+# =========================
+# STORAGE
+# =========================
 DATA_PATH = "data/storage.csv"
 
-# =========================
-# INIT STORAGE
-# =========================
+REQUIRED_COLUMNS = [
+    "Year",
+    "Month",
+    "Total Consumption (Cubic Meters)",
+    "Bill Amount"
+]
+
 def init_storage():
     os.makedirs("data", exist_ok=True)
-
     if not os.path.exists(DATA_PATH):
-        df = pd.DataFrame(columns=[
-            "Year", "Month", "Consumption", "Bill", "Date"
-        ])
+        df = pd.DataFrame(columns=REQUIRED_COLUMNS + ["Date"])
         df.to_csv(DATA_PATH, index=False)
 
 init_storage()
@@ -34,46 +38,76 @@ def load_data():
 def save_data(df):
     df.to_csv(DATA_PATH, index=False)
 
+def validate_columns(df):
+    missing = [c for c in REQUIRED_COLUMNS if c not in df.columns]
+    return missing
+
 # =========================
-# HOME PAGE
+# FRONTEND
 # =========================
 @app.route("/")
-def home():
+def index():
     return render_template("index.html")
 
 # =========================
-# ADD RECORD
+# ADD SINGLE RECORD
 # =========================
 @app.route("/api/add", methods=["POST"])
-def add_record():
+def add():
     try:
         data = request.json
-
         df = load_data()
 
         new_row = {
             "Year": int(data["Year"]),
             "Month": int(data["Month"]),
-            "Consumption": float(data["Consumption"]),
-            "Bill": float(data["Bill"]),
+            "Total Consumption (Cubic Meters)": float(data["Consumption"]),
+            "Bill Amount": float(data["Bill"]),
             "Date": datetime.now().isoformat()
         }
 
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         save_data(df)
 
-        return jsonify({"message": "Record added successfully"}), 200
+        return jsonify({"message": "Record added"}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 # =========================
-# GET DATA
+# FILE UPLOAD (CSV / JSON)
 # =========================
-@app.route("/api/data")
-def get_data():
-    df = load_data()
-    return jsonify(df.to_dict(orient="records"))
+@app.route("/api/upload", methods=["POST"])
+def upload():
+    try:
+        file = request.files["file"]
+        ext = file.filename.split(".")[-1].lower()
+
+        if ext == "csv":
+            df_new = pd.read_csv(file)
+        elif ext == "json":
+            df_new = pd.read_json(file)
+        else:
+            return jsonify({"error": "Only CSV and JSON allowed"}), 400
+
+        missing = validate_columns(df_new)
+        if missing:
+            return jsonify({
+                "error": "Invalid file format",
+                "missing_columns": missing
+            }), 400
+
+        df = load_data()
+        df = pd.concat([df, df_new], ignore_index=True)
+        save_data(df)
+
+        return jsonify({
+            "message": "Upload successful",
+            "rows_added": len(df_new)
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # =========================
 # DASHBOARD
@@ -86,14 +120,22 @@ def dashboard():
         return jsonify({"message": "No data"})
 
     return jsonify({
-        "total": df["Consumption"].sum(),
-        "avg": df["Consumption"].mean(),
-        "bill": df["Bill"].sum(),
+        "total": float(df["Total Consumption (Cubic Meters)"].sum()),
+        "avg": float(df["Total Consumption (Cubic Meters)"].mean()),
+        "bill": float(df["Bill Amount"].sum()),
         "count": len(df)
     })
 
 # =========================
-# FORECAST
+# REPORTS
+# =========================
+@app.route("/api/data")
+def data():
+    df = load_data()
+    return jsonify(df.to_dict(orient="records"))
+
+# =========================
+# FORECAST (HISTORY + FUTURE)
 # =========================
 @app.route("/api/forecast")
 def forecast():
@@ -103,13 +145,16 @@ def forecast():
         return jsonify({"error": "Not enough data"})
 
     X = np.arange(len(df)).reshape(-1, 1)
-    y = df["Consumption"].values
 
-    preds = model.predict(X)
+    history_pred = model.predict(X)
+
+    future_X = np.arange(len(df), len(df) + 3).reshape(-1, 1)
+    future_pred = model.predict(future_X)
 
     return jsonify({
-        "forecast": preds.tolist(),
-        "next": float(preds[-1])
+        "history_actual": df["Total Consumption (Cubic Meters)"].tolist(),
+        "history_predicted": history_pred.tolist(),
+        "future_3_months": future_pred.tolist()
     })
 
 # =========================
@@ -119,19 +164,22 @@ def forecast():
 def anomaly():
     df = load_data()
 
-    mean = df["Consumption"].mean()
-    std = df["Consumption"].std()
+    if df.empty:
+        return jsonify([])
 
-    threshold = mean + 1.5 * std
+    mean = df["Total Consumption (Cubic Meters)"].mean()
+    std = df["Total Consumption (Cubic Meters)"].std()
 
-    df["status"] = df["Consumption"].apply(
+    threshold = mean + (1.5 * std)
+
+    df["status"] = df["Total Consumption (Cubic Meters)"].apply(
         lambda x: "ANOMALY" if x > threshold else "NORMAL"
     )
 
     return jsonify(df.to_dict(orient="records"))
 
 # =========================
-# MAINTENANCE ALERT (QUARTERLY)
+# MAINTENANCE ALERT
 # =========================
 @app.route("/api/maintenance")
 def maintenance():
@@ -140,13 +188,12 @@ def maintenance():
     if df.empty:
         return jsonify({"alert": False})
 
-    latest_month = int(df.iloc[-1]["Month"])
+    last_month = int(df.iloc[-1]["Month"])
 
-    # every 3 months trigger
-    if latest_month % 3 == 0:
+    if last_month % 3 == 0:
         return jsonify({
             "alert": True,
-            "message": "Quarterly maintenance required!"
+            "message": "Quarterly maintenance due!"
         })
 
     return jsonify({"alert": False})
