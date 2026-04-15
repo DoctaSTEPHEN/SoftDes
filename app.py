@@ -5,26 +5,33 @@ import numpy as np
 import joblib
 import os
 import io
-from datetime import datetime
 
 app = Flask(__name__)
-CORS(app)  # Fix CORS issues
+CORS(app)
 
 # =========================
-# LOAD MODEL (WITH ERROR HANDLING)
+# LOAD MODEL
 # =========================
 try:
     model = joblib.load("model/gb_model.pkl")
+    print("✅ Model loaded")
 except:
-    # Create dummy model if missing
     from sklearn.ensemble import GradientBoostingRegressor
     model = GradientBoostingRegressor()
-    print("⚠️ Using dummy model - train your own model!")
+    print("⚠️ Using dummy model")
 
 # =========================
-# IN-MEMORY STORAGE (PERSISTENT)
+# IN-MEMORY STORAGE
 # =========================
 data_store = pd.DataFrame(columns=["Year", "Month", "Consumption", "Bill"])
+
+# =========================
+# DEBUG LOGGER
+# =========================
+@app.after_request
+def log_request(response):
+    print(f"📡 {request.method} {request.path} → {response.status}")
+    return response
 
 # =========================
 # HOME
@@ -34,13 +41,20 @@ def home():
     return render_template("index.html")
 
 # =========================
-# ADD RECORD
+# ADD RECORD (FIXED)
 # =========================
 @app.route("/api/add", methods=["POST"])
 def add_record():
+    global data_store
     try:
-        global data_store
         data = request.json
+        print("📥 ADD DATA:", data)
+
+        # Validate input
+        required = ["Year", "Month", "Consumption", "Bill"]
+        for field in required:
+            if field not in data or data[field] in [None, ""]:
+                return jsonify({"error": f"Missing {field}"}), 400
 
         new_row = {
             "Year": int(data["Year"]),
@@ -49,10 +63,20 @@ def add_record():
             "Bill": float(data["Bill"])
         }
 
-        data_store = pd.concat([data_store, pd.DataFrame([new_row])], ignore_index=True)
-        return jsonify({"message": "Record added successfully", "rows": len(data_store)})
+        data_store = pd.concat(
+            [data_store, pd.DataFrame([new_row])],
+            ignore_index=True
+        )
+
+        print(f"✅ Record added. Total rows: {len(data_store)}")
+
+        return jsonify({
+            "message": "Record added",
+            "rows": len(data_store)
+        })
 
     except Exception as e:
+        print("❌ ADD ERROR:", str(e))
         return jsonify({"error": str(e)}), 400
 
 # =========================
@@ -68,143 +92,130 @@ def get_data():
 @app.route("/api/dashboard")
 def dashboard():
     if data_store.empty:
-        return jsonify({"message": "No data yet", "total": 0, "avg": 0, "bill": 0})
+        return jsonify({
+            "total": 0,
+            "avg": 0,
+            "bill": 0
+        })
 
     return jsonify({
         "total": float(data_store["Consumption"].sum()),
         "avg": float(data_store["Consumption"].mean()),
-        "bill": float(data_store["Bill"].sum()),
-        "count": len(data_store)
+        "bill": float(data_store["Bill"].sum())
     })
 
 # =========================
-# UPLOAD CSV / JSON (🔥 FIXED)
+# UPLOAD (FULLY FIXED)
 # =========================
 @app.route("/api/upload", methods=["POST"])
 def upload():
     global data_store
-    
+
     try:
-        print("📁 UPLOAD REQUEST RECEIVED")  # Debug log
-        
-        # Handle both file and raw data
-        if "file" in request.files:
-            file = request.files["file"]
-            print(f"📄 File received: {file.filename}")  # Debug
-            
-            if file.filename == "" or not file:
-                return jsonify({"error": "No file selected"}), 400
-            
-            # Read file properly for Render
-            content = file.stream.read()
-            file.close()
-            
-            # Decode and process
+        print("📁 Upload request received")
+        print("📥 FILE KEYS:", request.files.keys())
+
+        file = request.files.get("file")
+
+        if not file or file.filename == "":
+            return jsonify({"error": "No file uploaded"}), 400
+
+        content = file.read()
+
+        # Try CSV first
+        try:
+            df = pd.read_csv(io.BytesIO(content))
+            print(f"✅ CSV loaded: {len(df)} rows")
+        except:
             try:
-                df = pd.read_csv(io.BytesIO(content))
-                print(f"✅ CSV loaded: {len(df)} rows")
+                df = pd.read_json(io.BytesIO(content))
+                print(f"✅ JSON loaded: {len(df)} rows")
             except:
-                try:
-                    df = pd.read_json(io.BytesIO(content))
-                    print(f"✅ JSON loaded: {len(df)} rows")
-                except:
-                    return jsonify({"error": "Invalid CSV/JSON"}), 400
-        else:
-            return jsonify({"error": "No file in request"}), 400
+                return jsonify({"error": "Invalid file format"}), 400
 
-        # Normalize column names (case insensitive)
+        # Normalize column names
         df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
-        
-        print(f"📊 Columns found: {list(df.columns)}")  # Debug
+        print("📊 Columns:", df.columns.tolist())
 
-        # Flexible column mapping
-        col_mapping = {}
+        # Flexible mapping
+        col_map = {}
         for col in df.columns:
-            if any(x in col for x in ['year', 'yr']):
-                col_mapping['year'] = col
-            elif any(x in col for x in ['month', 'mon']):
-                col_mapping['month'] = col
-            elif any(x in col for x in ['consumption', 'usage', 'meter']):
-                col_mapping['consumption'] = col
-            elif any(x in col for x in ['bill', 'amount', 'cost', 'charge']):
-                col_mapping['bill'] = col
+            if "year" in col:
+                col_map["year"] = col
+            elif "month" in col:
+                col_map["month"] = col
+            elif "consumption" in col or "usage" in col:
+                col_map["consumption"] = col
+            elif "bill" in col or "amount" in col:
+                col_map["bill"] = col
 
-        # Rename to standard
-        df = df.rename(columns=col_mapping)
+        df = df.rename(columns=col_map)
 
-        # Ensure we have required columns
-        required_cols = ['year', 'month', 'consumption', 'bill']
-        available_cols = [col for col in required_cols if col in df.columns]
-        
-        if len(available_cols) < 3:
+        # Check required columns
+        if not all(col in df.columns for col in ["year", "month"]):
             return jsonify({
-                "error": f"Need Year, Month, Consumption/Bill. Found: {list(df.columns)}"
+                "error": f"Missing required columns. Found: {list(df.columns)}"
             }), 400
 
         # Clean data
-        df = df[available_cols].dropna()
-        df['year'] = pd.to_numeric(df['year'], errors='coerce').fillna(2023).astype(int)
-        df['month'] = pd.to_numeric(df['month'], errors='coerce').fillna(1).clip(1,12).astype(int)
-        df['consumption'] = pd.to_numeric(df['consumption'], errors='coerce').fillna(0)
-        df['bill'] = pd.to_numeric(df['bill'], errors='coerce').fillna(0)
+        df = df.dropna()
+        df["year"] = pd.to_numeric(df["year"], errors="coerce").fillna(2023).astype(int)
+        df["month"] = pd.to_numeric(df["month"], errors="coerce").fillna(1).clip(1,12).astype(int)
+        df["consumption"] = pd.to_numeric(df.get("consumption", 0), errors="coerce").fillna(0)
+        df["bill"] = pd.to_numeric(df.get("bill", 0), errors="coerce").fillna(0)
 
         if df.empty:
-            return jsonify({"error": "No valid data after cleaning"}), 400
+            return jsonify({"error": "No valid data"}), 400
 
-        # Add to global store (deduplicate)
-        df_standard = df[['year', 'month', 'consumption', 'bill']].copy()
-        df_standard.columns = ['Year', 'Month', 'Consumption', 'Bill']
-        
+        # Standard format
+        df_standard = df[["year", "month", "consumption", "bill"]].copy()
+        df_standard.columns = ["Year", "Month", "Consumption", "Bill"]
+
+        # Save
         data_store = pd.concat([data_store, df_standard], ignore_index=True)
-        data_store = data_store.drop_duplicates(subset=['Year', 'Month']).reset_index(drop=True)
-        
-        print(f"💾 Added {len(df)} rows. Total: {len(data_store)}")  # Debug
+        data_store = data_store.drop_duplicates(subset=["Year", "Month"])
+
+        print(f"💾 Added {len(df)} rows. Total: {len(data_store)}")
 
         return jsonify({
             "success": True,
             "rows_added": len(df),
-            "total_rows": len(data_store),
-            "sample": data_store.tail(3).to_dict('records')
+            "total_rows": len(data_store)
         })
 
     except Exception as e:
-        print(f"❌ Upload error: {str(e)}")  # Debug log
-        import traceback
-        traceback.print_exc()
-        return jsonify({"error": f"Server error: {str(e)}"}), 500
+        print("❌ UPLOAD ERROR:", str(e))
+        return jsonify({"error": str(e)}), 500
+
 # =========================
-# FORECAST (🔥 FIXED)
+# FORECAST
 # =========================
 @app.route("/api/forecast")
 def forecast():
     try:
-        if data_store.empty or len(data_store) < 3:
+        if len(data_store) < 3:
             return jsonify({
-                "error": "Need at least 3 records for forecast",
+                "error": "Need at least 3 records",
                 "history_actual": [],
                 "history_predicted": [],
-                "future_3_months": [0, 0, 0]
+                "future_3_months": [0,0,0]
             })
 
-        # Prepare features: index + month
         X = np.column_stack([
             np.arange(len(data_store)),
-            data_store["Month"] % 12 + 1
+            data_store["Month"]
         ])
 
-        # Historical predictions
         history_pred = model.predict(X).tolist()
 
-        # Future predictions (next 3 months)
         last_idx = len(data_store)
         last_month = data_store["Month"].iloc[-1]
-        future_X = []
-        
-        for i in range(3):
-            next_idx = last_idx + i
-            next_month = (last_month + i - 1) % 12 + 1
-            future_X.append([next_idx, next_month])
-        
+
+        future_X = [
+            [last_idx+i, (last_month+i-1)%12+1]
+            for i in range(3)
+        ]
+
         future_pred = model.predict(np.array(future_X)).tolist()
 
         return jsonify({
@@ -214,35 +225,34 @@ def forecast():
         })
 
     except Exception as e:
-        return jsonify({
-            "error": str(e),
-            "history_actual": [],
-            "history_predicted": [],
-            "future_3_months": [0, 0, 0]
-        })
+        return jsonify({"error": str(e)})
 
 # =========================
-# ANOMALY DETECTION
+# ANOMALY
 # =========================
 @app.route("/api/anomaly")
 def anomaly():
-    if data_store.empty:
-        return jsonify([])
-
     try:
-        mean_cons = data_store["Consumption"].mean()
-        std_cons = data_store["Consumption"].std()
-        threshold = mean_cons + (2 * std_cons) if std_cons > 0 else mean_cons * 2
+        if data_store.empty:
+            return jsonify([])
+
+        mean = data_store["Consumption"].mean()
+        std = data_store["Consumption"].std()
+        threshold = mean + (2 * std if std > 0 else mean)
 
         df = data_store.copy()
         df["status"] = df["Consumption"].apply(
             lambda x: "ANOMALY" if x > threshold else "NORMAL"
         )
 
-        return jsonify(df[["Year", "Month", "Consumption", "status"]].to_dict("records"))
+        return jsonify(df.to_dict("records"))
+
     except:
         return jsonify([])
 
+# =========================
+# RUN
+# =========================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(host="0.0.0.0", port=port)
