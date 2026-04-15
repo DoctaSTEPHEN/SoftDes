@@ -65,11 +65,11 @@ function clearInputs() {
     year.value = month.value = consumption.value = bill.value = "";
 }
 
-async function uploadFile() {
+async function uploadFile(event) {
     const fileInput = document.getElementById("file");
     const file = fileInput.files[0];
     
-    console.log("🚀 Upload clicked, file:", file?.name);  // Debug
+    console.log("🚀 Upload clicked, file:", file?.name);
     
     if (!file) {
         notify("❌ Please select a file first");
@@ -77,7 +77,7 @@ async function uploadFile() {
     }
 
     // Show loading
-    const button = event.target;
+    const button = event ? event.target : document.querySelector('button[onclick="uploadFile()"]');
     const originalText = button.innerHTML;
     button.innerHTML = "⏳ Uploading...";
     button.disabled = true;
@@ -85,31 +85,34 @@ async function uploadFile() {
     const formData = new FormData();
     formData.append("file", file);
     
-    // Add progress tracking
     notify(`📤 Uploading ${file.name}...`);
 
     try {
-        console.log("📡 Sending request...");
         const res = await fetch("/api/upload", {
             method: "POST",
             body: formData
         });
 
-        console.log("📥 Response status:", res.status);
         const data = await res.json();
-        console.log("📊 Response data:", data);
+        console.log("📊 Upload result:", data);
 
         if (data.error) {
             notify(`❌ ${data.error}`);
         } else {
-            notify(`✅ Success! ${data.rows_added} rows added`);
-            fileInput.value = "";  // Clear file input
+            notify(`✅ Success! ${data.rows_added || data.rows} rows added`);
+            
+            // 🔥 CLEAR FILE INPUT - READY FOR NEXT UPLOAD
+            fileInput.value = "";  // Reset file input
+            console.log("🧹 File input cleared");
+            
+            // Auto refresh everything
             refreshAll();
         }
     } catch (error) {
         console.error("💥 Upload error:", error);
         notify(`❌ Network error: ${error.message}`);
     } finally {
+        // Reset button
         button.innerHTML = originalText;
         button.disabled = false;
     }
