@@ -1,7 +1,7 @@
 const BASE_URL = window.location.origin;
 
 // =============================
-// NOTIFICATION
+// NOTIFY
 // =============================
 function notify(msg, type = "success") {
     const div = document.createElement("div");
@@ -11,178 +11,156 @@ function notify(msg, type = "success") {
         position: fixed;
         top: 20px;
         right: 20px;
-        padding: 12px 18px;
+        padding: 12px;
         border-radius: 8px;
         color: white;
-        font-weight: bold;
-        z-index: 9999;
         background: ${type === "error" ? "#e74c3c" : "#2ecc71"};
+        z-index: 9999;
     `;
 
     document.body.appendChild(div);
-    setTimeout(() => div.remove(), 2500);
+    setTimeout(() => div.remove(), 2000);
 }
 
 // =============================
-// ADD RECORD
+// ADD
 // =============================
-async function addRecord() {
+window.addRecord = async function () {
     const data = {
-        Year: parseInt(document.getElementById("year").value),
-        Month: parseInt(document.getElementById("month").value),
-        Consumption: parseFloat(document.getElementById("consumption").value),
-        Bill: parseFloat(document.getElementById("bill").value)
+        Year: +document.getElementById("year").value,
+        Month: +document.getElementById("month").value,
+        Consumption: +document.getElementById("consumption").value,
+        Bill: +document.getElementById("bill").value
     };
 
-    if (Object.values(data).some(v => isNaN(v))) {
-        notify("Fill all fields", "error");
-        return;
+    if (Object.values(data).some(isNaN)) {
+        return notify("Fill all fields", "error");
     }
 
-    try {
-        const res = await fetch(`${BASE_URL}/api/add`, {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify(data)
-        });
-
-        const result = await res.json();
-
-        if (result.error) {
-            notify(result.error, "error");
-            return;
-        }
-
-        notify("Record added");
-        clearInputs();
-        refreshAll();
-
-    } catch {
-        notify("Network error", "error");
-    }
-}
-
-// =============================
-// CLEAR
-// =============================
-function clearInputs() {
-    ["year","consumption","bill"].forEach(id => {
-        document.getElementById(id).value = "";
+    await fetch(`${BASE_URL}/api/add`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
     });
-}
+
+    notify("Added");
+    refreshAll();
+};
+
+// =============================
+// UPLOAD (FIXED ERROR)
+// =============================
+window.uploadFile = async function () {
+    const file = document.getElementById("file").files[0];
+    if (!file) return notify("No file", "error");
+
+    const form = new FormData();
+    form.append("file", file);
+
+    await fetch(`${BASE_URL}/api/upload`, {
+        method: "POST",
+        body: form
+    });
+
+    notify("Uploaded");
+    refreshAll();
+};
 
 // =============================
 // DASHBOARD
 // =============================
 async function loadDashboard() {
     const res = await fetch(`${BASE_URL}/api/dashboard`);
-    const data = await res.json();
+    const d = await res.json();
 
-    document.getElementById("total").innerText = (data.total || 0).toFixed(1);
-    document.getElementById("avg").innerText = (data.avg || 0).toFixed(1);
-    document.getElementById("bill_total").innerText = (data.bill || 0).toFixed(1);
+    document.getElementById("total").innerText = d.total.toFixed(1);
+    document.getElementById("avg").innerText = d.avg.toFixed(1);
+    document.getElementById("bill_total").innerText = d.bill.toFixed(1);
 }
 
 // =============================
-// FORECAST (UPDATED: BILL + CONSUMPTION)
+// FORECAST (BILL ONLY)
 // =============================
 async function loadForecast() {
     const res = await fetch(`${BASE_URL}/api/forecast`);
-    const data = await res.json();
+    const d = await res.json();
 
-    if (data.error) {
-        document.getElementById("forecast").innerText = data.error;
+    if (d.error) {
+        document.getElementById("forecast").innerText = d.error;
         return;
     }
 
     document.getElementById("forecast").innerHTML =
-        `<b>Bill Forecast:</b> ₱${data.future_bill.map(v => v.toFixed(2)).join(" → ₱")}`;
+        "₱" + d.future_bill.map(v => v.toFixed(2)).join(" → ₱");
 }
 
 // =============================
-// CHART (FIXED: NO PREDICTED)
+// CHART (BILL ONLY)
 // =============================
-let chartInstance = null;
+let chartInstance;
 
 async function loadChart() {
     const res = await fetch(`${BASE_URL}/api/forecast`);
-    const data = await res.json();
+    const d = await res.json();
 
-    if (!data.history_actual?.length) return;
+    if (!d.history_actual) return;
 
     const ctx = document.getElementById("chart").getContext("2d");
 
     if (chartInstance) chartInstance.destroy();
 
-    const history = data.history_actual;
-    const forecast = data.future_bill;
-    const labels = data.labels;
-
     chartInstance = new Chart(ctx, {
         type: "line",
         data: {
-            labels,
+            labels: d.labels,
             datasets: [
                 {
                     label: "Actual Bill",
-                    data: history.concat(Array(forecast.length).fill(null)),
-                    borderColor: "#2196F3",
-                    tension: 0.4
+                    data: d.history_actual.concat(Array(d.future_bill.length).fill(null)),
+                    borderColor: "#2196F3"
                 },
                 {
                     label: "Forecast Bill",
-                    data: Array(history.length).fill(null).concat(forecast),
+                    data: Array(d.history_actual.length).fill(null).concat(d.future_bill),
                     borderColor: "#FF5722",
-                    borderDash: [5, 5],
-                    tension: 0.4
+                    borderDash: [5, 5]
                 }
             ]
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: { beginAtZero: true }
-            }
+            maintainAspectRatio: false
         }
     });
 }
+
 // =============================
 // ANOMALY
 // =============================
 async function checkAnomaly() {
     const res = await fetch(`${BASE_URL}/api/anomaly`);
-    const data = await res.json();
+    const d = await res.json();
 
-    const anomalies = data.filter(d => d.status === "ANOMALY");
+    const a = d.filter(x => x.status === "ANOMALY");
 
-    const el = document.getElementById("anomaly");
-
-    if (!anomalies.length) {
-        el.innerHTML = "No anomalies";
-        return;
-    }
-
-    el.innerHTML = anomalies
-        .map(a => `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`)
-        .join("<br>");
+    document.getElementById("anomaly").innerHTML =
+        a.length ? a.map(x => `${x.Year}-${x.Month}: ${x.Consumption}`).join("<br>") : "No anomalies";
 }
 
 // =============================
-// REPORTS (FIXED YEAR)
+// REPORTS
 // =============================
 async function loadReports() {
     const res = await fetch(`${BASE_URL}/api/data`);
-    const data = await res.json();
+    const d = await res.json();
 
-    const table = document.getElementById("reportTable");
-
-    table.innerHTML = data.map(d => `
+    document.getElementById("reportTable").innerHTML =
+        d.map(x => `
         <tr>
-            <td>${d.Year}</td>
-            <td>${d.Month}</td>
-            <td>${d.Consumption}</td>
-            <td>${d.Bill}</td>
+            <td>${x.Year}</td>
+            <td>${x.Month}</td>
+            <td>${x.Consumption}</td>
+            <td>${x.Bill}</td>
         </tr>
     `).join("");
 }
@@ -200,10 +178,4 @@ async function refreshAll() {
     ]);
 }
 
-// =============================
-// INIT
-// =============================
-window.onload = () => {
-    refreshAll();
-    setInterval(refreshAll, 30000);
-};
+window.onload = refreshAll;
