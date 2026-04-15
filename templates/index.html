@@ -8,10 +8,12 @@
 
 <body>
 
-<h1>💧 Water Monitoring System (MongoDB)</h1>
+<h1>💧 Water Monitoring System (MongoDB + Auto AI)</h1>
 
+<!-- ========================= -->
+<!-- ADD RECORD -->
+<!-- ========================= -->
 <div class="card">
-
     <h3>Add Record</h3>
 
     <input id="year" placeholder="Year">
@@ -19,15 +21,22 @@
     <input id="consumption" placeholder="Consumption">
     <input id="bill" placeholder="Bill">
 
-    <button onclick="addRecord()">Add</button>
+    <button onclick="addRecord()">Add Record</button>
 </div>
 
+<!-- ========================= -->
+<!-- UPLOAD -->
+<!-- ========================= -->
 <div class="card">
     <h3>Upload CSV / JSON</h3>
+
     <input type="file" id="file">
-    <button onclick="uploadFile()">Upload</button>
+    <button onclick="uploadFile()">Upload File</button>
 </div>
 
+<!-- ========================= -->
+<!-- DASHBOARD -->
+<!-- ========================= -->
 <div class="card">
     <h3>Dashboard</h3>
     <p>Total: <span id="total"></span></p>
@@ -35,24 +44,34 @@
     <p>Bill: <span id="bill_total"></span></p>
 </div>
 
+<!-- ========================= -->
+<!-- FORECAST (AUTO DISPLAY ONLY) -->
+<!-- ========================= -->
 <div class="card">
-    <h3>Forecast</h3>
-    <button onclick="loadForecast()">Run Forecast</button>
-    <div id="forecast"></div>
+    <h3>Forecast (Auto Generated)</h3>
+    <div id="forecast">Loading...</div>
 </div>
 
+<!-- ========================= -->
+<!-- VISUALIZATION (AUTO CHART) -->
+<!-- ========================= -->
 <div class="card">
-    <h3>Visualization</h3>
-    <button onclick="loadChart()">Load Chart</button>
+    <h3>Visualization (Auto Chart)</h3>
     <canvas id="chart"></canvas>
 </div>
 
+<!-- ========================= -->
+<!-- ANOMALY -->
+<!-- ========================= -->
 <div class="card">
-    <h3>Anomaly</h3>
-    <button onclick="checkAnomaly()">Check</button>
+    <h3>Anomaly Detection</h3>
     <div id="anomaly"></div>
 </div>
 
+<!-- ========================= -->
+<!-- SCRIPT -->
+<!-- ========================= -->
 <script src="/static/scripts.js"></script>
+
 </body>
 </html>
