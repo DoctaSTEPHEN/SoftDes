@@ -201,6 +201,26 @@ def anomaly():
 
     return jsonify(df.to_dict("records"))
 
+@app.route("/api/dashboard")
+def dashboard():
+    if data_store.empty:
+        return jsonify({
+            "total": 0, "avg": 0, "bill": 0, "records": 0
+        })
+    return jsonify({
+        "total": data_store["Consumption"].sum(),
+        "avg": data_store["Consumption"].mean(),
+        "bill": data_store["Bill"].sum(),
+        "records": len(data_store)
+    })
+
+@app.route("/api/data")
+def get_data():
+    if data_store.empty:
+        return jsonify([])
+    df = data_store.sort_values(["Year", "Month"]).reset_index(drop=True)
+    return jsonify(df.to_dict("records"))
+
 # =========================
 # MAINTENANCE CALCULATOR
 # =========================
