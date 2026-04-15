@@ -82,77 +82,96 @@ def dashboard():
 # =========================
 @app.route("/api/upload", methods=["POST"])
 def upload():
+    global data_store
+    
     try:
-        global data_store
-
-        if "file" not in request.files:
-            return jsonify({"error": "No file selected"}), 400
-
-        file = request.files["file"]
-        if file.filename == "":
-            return jsonify({"error": "No file selected"}), 400
-
-        # Read file content
-        content = file.read()
-        file.seek(0)  # Reset file pointer
-
-        # Try CSV first, then JSON
-        try:
-            df = pd.read_csv(io.StringIO(content.decode('utf-8')))
-        except:
-            try:
-                df = pd.read_json(io.StringIO(content.decode('utf-8')))
-            except:
-                return jsonify({"error": "Invalid file format (CSV/JSON only)"}), 400
-
-        # Clean column names and map to expected format
-        df.columns = df.columns.str.strip().str.lower()
+        print("📁 UPLOAD REQUEST RECEIVED")  # Debug log
         
-        # Handle different possible column names
-        col_map = {}
-        if "total consumption (cubic meters)" in df.columns:
-            col_map["consumption"] = "Total Consumption (Cubic Meters)"
-        if "bill amount" in df.columns:
-            col_map["bill"] = "Bill Amount"
-        if "year" not in df.columns:
-            col_map["year"] = "Year"
-        if "month" not in df.columns:
-            col_map["month"] = "Month"
+        # Handle both file and raw data
+        if "file" in request.files:
+            file = request.files["file"]
+            print(f"📄 File received: {file.filename}")  # Debug
+            
+            if file.filename == "" or not file:
+                return jsonify({"error": "No file selected"}), 400
+            
+            # Read file properly for Render
+            content = file.stream.read()
+            file.close()
+            
+            # Decode and process
+            try:
+                df = pd.read_csv(io.BytesIO(content))
+                print(f"✅ CSV loaded: {len(df)} rows")
+            except:
+                try:
+                    df = pd.read_json(io.BytesIO(content))
+                    print(f"✅ JSON loaded: {len(df)} rows")
+                except:
+                    return jsonify({"error": "Invalid CSV/JSON"}), 400
+        else:
+            return jsonify({"error": "No file in request"}), 400
 
-        # Rename columns
-        df = df.rename(columns=col_map)
+        # Normalize column names (case insensitive)
+        df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
+        
+        print(f"📊 Columns found: {list(df.columns)}")  # Debug
 
-        required = ["year", "month", "consumption", "bill"]
-        missing = [c for c in required if c not in df.columns]
-        if missing:
-            return jsonify({"error": f"Missing columns: {missing}"}), 400
+        # Flexible column mapping
+        col_mapping = {}
+        for col in df.columns:
+            if any(x in col for x in ['year', 'yr']):
+                col_mapping['year'] = col
+            elif any(x in col for x in ['month', 'mon']):
+                col_mapping['month'] = col
+            elif any(x in col for x in ['consumption', 'usage', 'meter']):
+                col_mapping['consumption'] = col
+            elif any(x in col for x in ['bill', 'amount', 'cost', 'charge']):
+                col_mapping['bill'] = col
+
+        # Rename to standard
+        df = df.rename(columns=col_mapping)
+
+        # Ensure we have required columns
+        required_cols = ['year', 'month', 'consumption', 'bill']
+        available_cols = [col for col in required_cols if col in df.columns]
+        
+        if len(available_cols) < 3:
+            return jsonify({
+                "error": f"Need Year, Month, Consumption/Bill. Found: {list(df.columns)}"
+            }), 400
 
         # Clean data
-        df = df[required].dropna()
-        df["year"] = pd.to_numeric(df["year"], errors='coerce').fillna(2023).astype(int)
-        df["month"] = pd.to_numeric(df["month"], errors='coerce').fillna(1).astype(int)
-        df["consumption"] = pd.to_numeric(df["consumption"], errors='coerce').fillna(0)
-        df["bill"] = pd.to_numeric(df["bill"], errors='coerce').fillna(0)
-
-        # Filter valid months
-        df = df[(df["month"] >= 1) & (df["month"] <= 12)]
+        df = df[available_cols].dropna()
+        df['year'] = pd.to_numeric(df['year'], errors='coerce').fillna(2023).astype(int)
+        df['month'] = pd.to_numeric(df['month'], errors='coerce').fillna(1).clip(1,12).astype(int)
+        df['consumption'] = pd.to_numeric(df['consumption'], errors='coerce').fillna(0)
+        df['bill'] = pd.to_numeric(df['bill'], errors='coerce').fillna(0)
 
         if df.empty:
-            return jsonify({"error": "No valid data found"}), 400
+            return jsonify({"error": "No valid data after cleaning"}), 400
 
-        # Add to store
-        data_store = pd.concat([data_store, df], ignore_index=True)
-        data_store = data_store.drop_duplicates(subset=["year", "month"]).reset_index(drop=True)
+        # Add to global store (deduplicate)
+        df_standard = df[['year', 'month', 'consumption', 'bill']].copy()
+        df_standard.columns = ['Year', 'Month', 'Consumption', 'Bill']
+        
+        data_store = pd.concat([data_store, df_standard], ignore_index=True)
+        data_store = data_store.drop_duplicates(subset=['Year', 'Month']).reset_index(drop=True)
+        
+        print(f"💾 Added {len(df)} rows. Total: {len(data_store)}")  # Debug
 
         return jsonify({
-            "message": "Upload successful",
-            "rows": len(df),
-            "total_rows": len(data_store)
+            "success": True,
+            "rows_added": len(df),
+            "total_rows": len(data_store),
+            "sample": data_store.tail(3).to_dict('records')
         })
 
     except Exception as e:
-        return jsonify({"error": f"Upload failed: {str(e)}"}), 400
-
+        print(f"❌ Upload error: {str(e)}")  # Debug log
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 # =========================
 # FORECAST (🔥 FIXED)
 # =========================
