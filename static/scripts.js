@@ -96,8 +96,7 @@ async function loadForecast() {
     }
 
     document.getElementById("forecast").innerHTML =
-        `<b>Consumption: ${data.future_consumption.map(v => v.toFixed(1)).join(" → ")} m³</b><br>
-         <b>Bill: ₱${data.future_bill.map(v => v.toFixed(2)).join(" → ₱")}</b>`;
+        `<b>Bill Forecast:</b> ₱${data.future_bill.map(v => v.toFixed(2)).join(" → ₱")}`;
 }
 
 // =============================
