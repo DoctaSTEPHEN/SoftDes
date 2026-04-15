@@ -8,56 +8,49 @@
 
 <body>
 
-<h1>💧 Water Monitoring System</h1>
+<h1>💧 Water Monitoring System (MongoDB)</h1>
 
-<div class="grid">
+<div class="card">
 
-    <!-- INPUT -->
-    <div class="card">
-        <h3>Add Record</h3>
+    <h3>Add Record</h3>
 
-        <input id="year" placeholder="Year">
-        <input id="month" placeholder="Month">
-        <input id="consumption" placeholder="Consumption">
-        <input id="bill" placeholder="Bill">
+    <input id="year" placeholder="Year">
+    <input id="month" placeholder="Month">
+    <input id="consumption" placeholder="Consumption">
+    <input id="bill" placeholder="Bill">
 
-        <button onclick="addRecord()">Submit</button>
-    </div>
+    <button onclick="addRecord()">Add</button>
+</div>
 
-    <!-- UPLOAD -->
-    <div class="card">
-        <h3>Upload File</h3>
-        <input type="file" id="file">
-        <button onclick="uploadFile()">Upload CSV/JSON</button>
-    </div>
+<div class="card">
+    <h3>Upload CSV / JSON</h3>
+    <input type="file" id="file">
+    <button onclick="uploadFile()">Upload</button>
+</div>
 
-    <!-- DASHBOARD -->
-    <div class="card">
-        <h3>Dashboard</h3>
-        <p>Total: <span id="total"></span></p>
-        <p>Avg: <span id="avg"></span></p>
-        <p>Bill: <span id="bill_total"></span></p>
-    </div>
+<div class="card">
+    <h3>Dashboard</h3>
+    <p>Total: <span id="total"></span></p>
+    <p>Avg: <span id="avg"></span></p>
+    <p>Bill: <span id="bill_total"></span></p>
+</div>
 
-    <!-- FORECAST -->
-    <div class="card">
-        <h3>Forecast</h3>
-        <button onclick="getForecast()">Run</button>
-        <div id="forecast"></div>
-    </div>
+<div class="card">
+    <h3>Forecast</h3>
+    <button onclick="loadForecast()">Run Forecast</button>
+    <div id="forecast"></div>
+</div>
 
-    <!-- ANOMALY -->
-    <div class="card">
-        <h3>Anomaly</h3>
-        <button onclick="checkAnomaly()">Check</button>
-        <div id="anomaly"></div>
-    </div>
+<div class="card">
+    <h3>Visualization</h3>
+    <button onclick="loadChart()">Load Chart</button>
+    <canvas id="chart"></canvas>
+</div>
 
-    <div class="card" style="width: 90%;">
-        <h3>Visualization</h3>
-        <button onclick="loadChart()">Load Chart</button>
-        <canvas id="chart"></canvas>
-    </div>
+<div class="card">
+    <h3>Anomaly</h3>
+    <button onclick="checkAnomaly()">Check</button>
+    <div id="anomaly"></div>
 </div>
 
 <script src="/static/scripts.js"></script>
