@@ -23,6 +23,29 @@ function notify(msg, type = "success") {
 }
 
 // =========================
+// MAINTENANCE
+// =========================
+async function checkMaintenanceToday() {
+    try {
+        const res = await fetch(`${BASE_URL}/api/maintenance/today`);
+        const d = await res.json();
+
+        const box = document.getElementById("maintenanceAlert");
+
+        if (d.is_today) {
+            box.style.display = "block";
+
+            notify("⚠ Today is maintenance day!", "error");
+        } else {
+            box.style.display = "none";
+        }
+
+    } catch (e) {
+        console.log("Maintenance check failed");
+    }
+}
+
+// =========================
 // ADD RECORD
 // =========================
 window.addRecord = async function () {
@@ -228,7 +251,8 @@ async function refreshAll() {
         loadForecast(),
         loadChart(),
         checkAnomaly(),
-        loadReports()
+        loadReports(),
+        checkMaintenanceToday()
     ]);
 }
 
