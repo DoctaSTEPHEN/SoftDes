@@ -1,79 +1,208 @@
-function parseCSV(text) {
-    const rows = text.split("\n");
-    const headers = rows[0].split(",");
+// =============================
+// CONFIG
+// =============================
+const BASE_URL = "https://softdes-2.onrender.com"; // CHANGE THIS
 
-    return rows.slice(1).map(row => {
-        const values = row.split(",");
-        let obj = {};
-        headers.forEach((h, i) => {
-            obj[h.trim()] = isNaN(values[i]) ? values[i] : Number(values[i]);
-        });
-        return obj;
+// =============================
+// PAGE NAVIGATION
+// =============================
+function showPage(pageId) {
+    document.querySelectorAll(".page").forEach(page => {
+        page.classList.add("hidden");
     });
+
+    document.getElementById(pageId).classList.remove("hidden");
+
+    // Auto-load data when switching pages
+    if (pageId === "dashboard") loadDashboard();
+    if (pageId === "visualize") loadChart();
+    if (pageId === "reports") loadReports();
 }
 
-function sendData() {
-    let data = [];
 
-    const jsonInput = document.getElementById("jsonInput").value;
-    const fileInput = document.getElementById("csvFile").files[0];
-    const maintenanceMonth = document.getElementById("maintenanceMonth").value;
+// =============================
+// DASHBOARD
+// =============================
+async function loadDashboard() {
+    try {
+        const res = await fetch(`${BASE_URL}/dashboard`);
+        const data = await res.json();
 
-    if (fileInput) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            data = parseCSV(e.target.result);
-            sendToBackend(data, maintenanceMonth);
-        };
-        reader.readAsText(fileInput);
-    } else {
-        try {
-            data = JSON.parse(jsonInput).data;
-            sendToBackend(data, maintenanceMonth);
-        } catch (e) {
-            alert("Invalid JSON");
+        if (data.message) {
+            console.log("No data yet");
+            return;
         }
+
+        document.getElementById("total_usage").innerText = data.total_usage.toFixed(2);
+        document.getElementById("avg_usage").innerText = data.avg_usage.toFixed(2);
+        document.getElementById("total_bill").innerText = data.total_bill.toFixed(2);
+
+    } catch (err) {
+        console.error("Dashboard error:", err);
     }
 }
 
-function sendToBackend(data, maintenanceMonth) {
-    fetch("/forecast", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({
-            data: data,
-            maintenance_month: maintenanceMonth
-        })
-    })
-    .then(res => res.json())
-    .then(res => {
-        document.getElementById("result").textContent =
-            JSON.stringify(res, null, 2);
 
-        showChart(res.forecast);
+// =============================
+// ADD RECORD (MANUAL)
+// =============================
+async function addRecord() {
+    try {
+        const data = {
+            Year: parseInt(document.getElementById("year").value),
+            Month: parseInt(document.getElementById("month").value),
+            Consumption: parseFloat(document.getElementById("consumption").value),
+            Bill: parseFloat(document.getElementById("bill").value),
+            Branch: document.getElementById("branch").value || "Main"
+        };
 
-        if (res.alerts.length > 0) {
-            alert("⚠️ " + res.alerts.join("\n"));
+        // Simple validation
+        if (!data.Year || !data.Month || !data.Consumption || !data.Bill) {
+            alert("Please fill all required fields");
+            return;
         }
 
-        if (res.maintenance.length > 0) {
-            alert("🔧 " + res.maintenance.join("\n"));
-        }
-    });
+        const res = await fetch(`${BASE_URL}/record/manual`, {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+
+        alert(result.message || "Record added!");
+
+        // Refresh dashboard + reports
+        loadDashboard();
+        loadReports();
+
+    } catch (err) {
+        console.error("Add record error:", err);
+    }
 }
 
-function showChart(forecast) {
-    const labels = forecast.map(f => f.Month + "/" + f.Year);
-    const values = forecast.map(f => f.Consumption);
 
-    new Chart(document.getElementById("chart"), {
-        type: "line",
-        data: {
-            labels: labels,
-            datasets: [{
-                label: "Predicted Consumption",
-                data: values
-            }]
+// =============================
+// FILE UPLOAD
+// =============================
+async function uploadFile() {
+    try {
+        const fileInput = document.getElementById("file");
+
+        if (!fileInput.files.length) {
+            alert("Please select a file");
+            return;
         }
-    });
+
+        const formData = new FormData();
+        formData.append("file", fileInput.files[0]);
+
+        const res = await fetch(`${BASE_URL}/record/upload`, {
+            method: "POST",
+            body: formData
+        });
+
+        const result = await res.json();
+
+        alert(result.message || "Upload complete!");
+
+        loadDashboard();
+        loadReports();
+
+    } catch (err) {
+        console.error("Upload error:", err);
+    }
 }
+
+
+// =============================
+// VISUALIZATION (CHART)
+// =============================
+let chartInstance = null;
+
+async function loadChart() {
+    try {
+        const res = await fetch(`${BASE_URL}/visualize`);
+        const data = await res.json();
+
+        const ctx = document.getElementById("chart").getContext("2d");
+
+        // Destroy old chart if exists
+        if (chartInstance) {
+            chartInstance.destroy();
+        }
+
+        chartInstance = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: data.months,
+                datasets: [{
+                    label: "Water Consumption",
+                    data: data.consumption
+                }]
+            }
+        });
+
+    } catch (err) {
+        console.error("Chart error:", err);
+    }
+}
+
+
+// =============================
+// REPORTS TABLE
+// =============================
+async function loadReports() {
+    try {
+        const res = await fetch(`${BASE_URL}/reports`);
+        const data = await res.json();
+
+        const table = document.getElementById("reportTable");
+        table.innerHTML = "";
+
+        data.forEach((row, index) => {
+            table.innerHTML += `
+                <tr>
+                    <td>${row.Month}</td>
+                    <td>${row.Consumption}</td>
+                    <td>${row.Bill}</td>
+                    <td>
+                        <button onclick="deleteRecord(${index})">Delete</button>
+                    </td>
+                </tr>
+            `;
+        });
+
+    } catch (err) {
+        console.error("Reports error:", err);
+    }
+}
+
+
+// =============================
+// DELETE RECORD
+// =============================
+async function deleteRecord(index) {
+    try {
+        await fetch(`${BASE_URL}/reports/delete/${index}`, {
+            method: "DELETE"
+        });
+
+        alert("Deleted!");
+
+        loadReports();
+        loadDashboard();
+
+    } catch (err) {
+        console.error("Delete error:", err);
+    }
+}
+
+
+// =============================
+// INIT LOAD
+// =============================
+window.onload = () => {
+    loadDashboard();
+    loadReports();
+};
