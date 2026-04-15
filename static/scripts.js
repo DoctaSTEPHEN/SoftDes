@@ -1,7 +1,7 @@
 const BASE_URL = window.location.origin;
 
 // =========================
-// NOTIFY
+// NOTIFICATION
 // =========================
 function notify(msg, type = "success") {
     const div = document.createElement("div");
@@ -23,25 +23,21 @@ function notify(msg, type = "success") {
 }
 
 // =========================
-// MAINTENANCE
+// SAFE FETCH (IMPORTANT FIX)
 // =========================
-async function checkMaintenanceToday() {
+async function safeFetch(url) {
     try {
-        const res = await fetch(`${BASE_URL}/api/maintenance/today`);
-        const d = await res.json();
+        const res = await fetch(url);
 
-        const box = document.getElementById("maintenanceAlert");
-
-        if (d.is_today) {
-            box.style.display = "block";
-
-            notify("⚠ Today is maintenance day!", "error");
-        } else {
-            box.style.display = "none";
+        if (!res.ok) {
+            console.error("API error:", url, res.status);
+            return null;
         }
 
+        return await res.json();
     } catch (e) {
-        console.log("Maintenance check failed");
+        console.error("Network error:", url, e);
+        return null;
     }
 }
 
@@ -50,10 +46,10 @@ async function checkMaintenanceToday() {
 // =========================
 window.addRecord = async function () {
     const data = {
-        Year: +year.value,
-        Month: +month.value,
-        Consumption: +consumption.value,
-        Bill: +bill.value
+        Year: +document.getElementById("year").value,
+        Month: +document.getElementById("month").value,
+        Consumption: +document.getElementById("consumption").value,
+        Bill: +document.getElementById("bill").value
     };
 
     if (Object.values(data).some(v => !v)) {
@@ -69,12 +65,12 @@ window.addRecord = async function () {
     const d = await res.json();
     if (d.error) return notify(d.error, "error");
 
-    notify("Added");
+    notify("Record added");
     refreshAll();
 };
 
 // =========================
-// UPLOAD
+// UPLOAD FIX
 // =========================
 window.uploadFile = async function () {
     const file = document.getElementById("file").files[0];
@@ -105,28 +101,23 @@ window.uploadFile = async function () {
 // DASHBOARD
 // =========================
 async function loadDashboard() {
-    const res = await fetch(`${BASE_URL}/api/dashboard`);
-    const d = await res.json();
+    const d = await safeFetch(`${BASE_URL}/api/dashboard`);
+    if (!d) return;
 
-    document.getElementById("total").innerText = d.total.toFixed(1);
-    document.getElementById("avg").innerText = d.avg.toFixed(1);
-    document.getElementById("bill_total").innerText = d.bill.toFixed(1);
+    document.getElementById("total").innerText = d.total?.toFixed(1) || 0;
+    document.getElementById("avg").innerText = d.avg?.toFixed(1) || 0;
+    document.getElementById("bill_total").innerText = d.bill?.toFixed(1) || 0;
 }
 
 // =========================
-// FORECAST (BILL ONLY)
+// FORECAST
 // =========================
 async function loadForecast() {
-    const res = await fetch(`${BASE_URL}/api/forecast`);
-    const d = await res.json();
-
-    if (d.error) {
-        document.getElementById("forecast").innerText = d.error;
-        return;
-    }
+    const d = await safeFetch(`${BASE_URL}/api/forecast`);
+    if (!d || d.error) return;
 
     document.getElementById("forecast").innerHTML =
-        "₱" + d.future_bill.map(v => v.toFixed(2)).join(" → ₱");
+        "₱ " + d.future_bill.map(v => v.toFixed(2)).join(" → ₱ ");
 }
 
 // =========================
@@ -135,74 +126,48 @@ async function loadForecast() {
 let chartInstance;
 
 async function loadChart() {
-    const res = await fetch(`${BASE_URL}/api/forecast`);
-    const d = await res.json();
-
-    if (!d.history_actual || d.history_actual.length === 0) return;
+    const d = await safeFetch(`${BASE_URL}/api/forecast`);
+    if (!d || !d.history_actual) return;
 
     const ctx = document.getElementById("chart").getContext("2d");
 
     if (chartInstance) chartInstance.destroy();
 
-    const historyLen = d.history_actual.length;
-
-    // labels: real months + future labels
-    const labels = [
-        ...Array(historyLen).fill("").map((_, i) => `M${i + 1}`),
-        "F1", "F2", "F3"
-    ];
+    const len = d.history_actual.length;
 
     chartInstance = new Chart(ctx, {
         type: "line",
         data: {
-            labels: labels,
-
+            labels: [
+                ...Array(len).fill("").map((_, i) => `M${i + 1}`),
+                "F1", "F2", "F3"
+            ],
             datasets: [
-                // ======================
-                // ACTUAL (FIXED)
-                // ======================
                 {
                     label: "Actual Bill",
                     data: d.history_actual,
-                    borderColor: "#2196F3",
-                    tension: 0.4,
-                    pointRadius: 4
+                    borderColor: "#2196F3"
                 },
-
-                // ======================
-                // FORECAST (SHIFTED)
-                // ======================
                 {
                     label: "Forecast Bill",
                     data: [
-                        ...Array(historyLen).fill(null),
+                        ...Array(len).fill(null),
                         ...d.future_bill
                     ],
                     borderColor: "#FF5722",
-                    borderDash: [5, 5],
-                    tension: 0.4,
-                    pointRadius: 4
+                    borderDash: [5, 5]
                 }
             ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            spanGaps: false,
-            scales: {
-                y: {
-                    beginAtZero: true
-                }
-            }
         }
     });
 }
+
 // =========================
-// ANOMALY (WITH POPUP)
+// ANOMALY
 // =========================
 async function checkAnomaly() {
-    const res = await fetch(`${BASE_URL}/api/anomaly`);
-    const d = await res.json();
+    const d = await safeFetch(`${BASE_URL}/api/anomaly`);
+    if (!d) return;
 
     const anomalies = d.filter(x => x.status === "ANOMALY");
 
@@ -217,81 +182,47 @@ async function checkAnomaly() {
         `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
     ).join("<br>");
 
-    notify("⚠ Anomaly detected!", "error");
+    notify("Anomaly detected!", "error");
 }
 
 // =========================
-// MAINTENANCE
-// =========================
-window.checkMaintenance = async function () {
-    const date = document.getElementById("maintenanceDate").value;
-
-    if (!date) return notify("Enter date", "error");
-
-    const res = await fetch(`${BASE_URL}/api/maintenance`, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ date })
-    });
-
-    const d = await res.json();
-
-    if (d.error) return notify(d.error, "error");
-
-    document.getElementById("maintenanceResult").innerText =
-        "Next maintenance: " + d.next_maintenance;
-
-    notify("Maintenance calculated");
-};
-
-// =========================
-// REPORTS
+// REPORTS (🔥 FIXED)
 // =========================
 async function loadReports() {
-    try {
-        const res = await fetch(`${BASE_URL}/api/data`);
+    const data = await safeFetch(`${BASE_URL}/api/data`);
 
-        if (!res.ok) {
-            console.error("API /api/data failed:", res.status);
-            document.getElementById("reportTable").innerHTML =
-                "<tr><td colspan='4'>No data available (server error)</td></tr>";
-            return;
-        }
+    const table = document.getElementById("reportTable");
+    table.innerHTML = "";
 
-        const data = await res.json();
-
-        const table = document.getElementById("reportTable");
-        table.innerHTML = "";
-
-        if (!data.length) {
-            table.innerHTML =
-                "<tr><td colspan='4'>No records yet</td></tr>";
-            return;
-        }
-
-        data.forEach(d => {
-            table.innerHTML += `
-                <tr>
-                    <td>${d.Year}</td>
-                    <td>${d.Month}</td>
-                    <td>${d.Consumption}</td>
-                    <td>${d.Bill}</td>
-                </tr>
-            `;
-        });
-
-    } catch (e) {
-        console.error("Report load error:", e);
-        document.getElementById("reportTable").innerHTML =
-            "<tr><td colspan='4'>Failed to load data</td></tr>";
+    // 🔥 FIX: server error OR empty
+    if (!data || !Array.isArray(data) || data.length === 0) {
+        table.innerHTML = `
+            <tr>
+                <td colspan="4" style="text-align:center; padding:15px;">
+                    No records available
+                </td>
+            </tr>
+        `;
+        return;
     }
+
+    data.forEach(d => {
+        table.innerHTML += `
+            <tr>
+                <td>${d.Year}</td>
+                <td>${d.Month}</td>
+                <td>${d.Consumption}</td>
+                <td>${d.Bill}</td>
+            </tr>
+        `;
+    });
 }
 
 // =========================
 // RESET
 // =========================
 window.resetData = async function () {
-    if (!confirm("Delete ALL data?")) return;
+    if (!confirm("Delete all data?")) return;
 
     await fetch(`${BASE_URL}/api/reset`, { method: "POST" });
 
@@ -300,7 +231,7 @@ window.resetData = async function () {
 };
 
 // =========================
-// REFRESH ALL (FIXED)
+// REFRESH
 // =========================
 async function refreshAll() {
     await Promise.all([
@@ -308,16 +239,8 @@ async function refreshAll() {
         loadForecast(),
         loadChart(),
         checkAnomaly(),
-        loadReports(),
-        checkMaintenanceToday()
+        loadReports()
     ]);
 }
-
-// expose missing functions
-window.loadDashboard = loadDashboard;
-window.loadForecast = loadForecast;
-window.loadChart = loadChart;
-window.checkAnomaly = checkAnomaly;
-window.loadReports = loadReports;
 
 window.onload = refreshAll;
