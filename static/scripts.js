@@ -1,8 +1,8 @@
 const BASE_URL = window.location.origin;
 
-// =============================
-// NOTIFY SYSTEM
-// =============================
+// =========================
+// NOTIFY
+// =========================
 function notify(msg, type = "success") {
     const div = document.createElement("div");
 
@@ -22,9 +22,9 @@ function notify(msg, type = "success") {
     setTimeout(() => div.remove(), 2500);
 }
 
-// =============================
-// ADD (ERROR HANDLING)
-// =============================
+// =========================
+// ADD RECORD
+// =========================
 window.addRecord = async function () {
     const data = {
         Year: +year.value,
@@ -44,25 +44,22 @@ window.addRecord = async function () {
     });
 
     const d = await res.json();
-
     if (d.error) return notify(d.error, "error");
 
     notify("Added");
     refreshAll();
 };
 
-// =============================
-// UPLOAD (ERROR HANDLING)
-// =============================
+// =========================
+// UPLOAD
+// =========================
 window.uploadFile = async function () {
     const file = document.getElementById("file").files[0];
 
     if (!file) return notify("Missing file upload", "error");
 
-    const allowed = ["csv", "json"];
     const ext = file.name.split(".").pop();
-
-    if (!allowed.includes(ext)) {
+    if (!["csv", "json"].includes(ext)) {
         return notify("Unsupported file upload", "error");
     }
 
@@ -75,16 +72,79 @@ window.uploadFile = async function () {
     });
 
     const d = await res.json();
-
     if (d.error) return notify(d.error, "error");
 
     notify("Upload success");
     refreshAll();
 };
 
-// =============================
-// ANOMALY ALERT POPUP
-// =============================
+// =========================
+// DASHBOARD
+// =========================
+async function loadDashboard() {
+    const res = await fetch(`${BASE_URL}/api/dashboard`);
+    const d = await res.json();
+
+    document.getElementById("total").innerText = d.total.toFixed(1);
+    document.getElementById("avg").innerText = d.avg.toFixed(1);
+    document.getElementById("bill_total").innerText = d.bill.toFixed(1);
+}
+
+// =========================
+// FORECAST (BILL ONLY)
+// =========================
+async function loadForecast() {
+    const res = await fetch(`${BASE_URL}/api/forecast`);
+    const d = await res.json();
+
+    if (d.error) {
+        document.getElementById("forecast").innerText = d.error;
+        return;
+    }
+
+    document.getElementById("forecast").innerHTML =
+        "₱" + d.future_bill.map(v => v.toFixed(2)).join(" → ₱");
+}
+
+// =========================
+// CHART
+// =========================
+let chartInstance;
+
+async function loadChart() {
+    const res = await fetch(`${BASE_URL}/api/forecast`);
+    const d = await res.json();
+
+    if (!d.history_actual) return;
+
+    const ctx = document.getElementById("chart").getContext("2d");
+
+    if (chartInstance) chartInstance.destroy();
+
+    chartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: d.labels,
+            datasets: [
+                {
+                    label: "Actual Bill",
+                    data: d.history_actual.concat(Array(d.future_bill.length).fill(null)),
+                    borderColor: "#2196F3"
+                },
+                {
+                    label: "Forecast Bill",
+                    data: Array(d.history_actual.length).fill(null).concat(d.future_bill),
+                    borderColor: "#FF5722",
+                    borderDash: [5, 5]
+                }
+            ]
+        }
+    });
+}
+
+// =========================
+// ANOMALY (WITH POPUP)
+// =========================
 async function checkAnomaly() {
     const res = await fetch(`${BASE_URL}/api/anomaly`);
     const d = await res.json();
@@ -102,17 +162,16 @@ async function checkAnomaly() {
         `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
     ).join("<br>");
 
-    // POPUP ALERT
     notify("⚠ Anomaly detected!", "error");
 }
 
-// =============================
-// MAINTENANCE INPUT
-// =============================
+// =========================
+// MAINTENANCE
+// =========================
 window.checkMaintenance = async function () {
     const date = document.getElementById("maintenanceDate").value;
 
-    if (!date) return notify("Enter maintenance date", "error");
+    if (!date) return notify("Enter date", "error");
 
     const res = await fetch(`${BASE_URL}/api/maintenance`, {
         method: "POST",
@@ -124,12 +183,45 @@ window.checkMaintenance = async function () {
 
     if (d.error) return notify(d.error, "error");
 
-    notify("Next maintenance: " + d.next_maintenance);
+    document.getElementById("maintenanceResult").innerText =
+        "Next maintenance: " + d.next_maintenance;
+
+    notify("Maintenance calculated");
 };
 
-// =============================
-// GLOBAL REFRESH
-// =============================
+// =========================
+// REPORTS
+// =========================
+async function loadReports() {
+    const res = await fetch(`${BASE_URL}/api/data`);
+    const d = await res.json();
+
+    document.getElementById("reportTable").innerHTML =
+        d.map(x => `
+            <tr>
+                <td>${x.Year}</td>
+                <td>${x.Month}</td>
+                <td>${x.Consumption}</td>
+                <td>${x.Bill}</td>
+            </tr>
+        `).join("");
+}
+
+// =========================
+// RESET
+// =========================
+window.resetData = async function () {
+    if (!confirm("Delete ALL data?")) return;
+
+    await fetch(`${BASE_URL}/api/reset`, { method: "POST" });
+
+    notify("Reset done");
+    refreshAll();
+};
+
+// =========================
+// REFRESH ALL (FIXED)
+// =========================
 async function refreshAll() {
     await Promise.all([
         loadDashboard(),
@@ -139,5 +231,12 @@ async function refreshAll() {
         loadReports()
     ]);
 }
+
+// expose missing functions
+window.loadDashboard = loadDashboard;
+window.loadForecast = loadForecast;
+window.loadChart = loadChart;
+window.checkAnomaly = checkAnomaly;
+window.loadReports = loadReports;
 
 window.onload = refreshAll;
