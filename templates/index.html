@@ -1,53 +1,57 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Water Forecast System</title>
+    <title>Water System</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
 
-<div class="container">
+<h1>💧 Water Monitoring System</h1>
 
-    <h1>💧 Water Consumption System</h1>
+<div class="grid">
 
     <!-- INPUT -->
     <div class="card">
-        <h3>Add Data</h3>
+        <h3>Add Record</h3>
 
         <input id="year" placeholder="Year">
         <input id="month" placeholder="Month">
         <input id="consumption" placeholder="Consumption">
         <input id="bill" placeholder="Bill">
 
-        <button onclick="addData()">Submit</button>
+        <button onclick="addRecord()">Submit</button>
+    </div>
+
+    <!-- UPLOAD -->
+    <div class="card">
+        <h3>Upload File</h3>
+        <input type="file" id="file">
+        <button onclick="uploadFile()">Upload CSV/JSON</button>
     </div>
 
     <!-- DASHBOARD -->
     <div class="card">
         <h3>Dashboard</h3>
         <p>Total: <span id="total"></span></p>
-        <p>Average: <span id="avg"></span></p>
+        <p>Avg: <span id="avg"></span></p>
         <p>Bill: <span id="bill_total"></span></p>
     </div>
 
     <!-- FORECAST -->
     <div class="card">
         <h3>Forecast</h3>
-        <button onclick="getForecast()">Run Forecast</button>
-        <p id="forecast"></p>
+        <button onclick="getForecast()">Run</button>
+        <div id="forecast"></div>
     </div>
 
     <!-- ANOMALY -->
     <div class="card">
-        <h3>Anomaly Check</h3>
+        <h3>Anomaly</h3>
         <button onclick="checkAnomaly()">Check</button>
         <div id="anomaly"></div>
     </div>
-
-    <!-- MAINTENANCE ALERT -->
-    <div id="popup" class="popup hidden"></div>
 
 </div>
 
