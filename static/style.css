@@ -1,36 +1,120 @@
-body {
-    font-family: Arial;
-    margin: 0;
+const BASE_URL = "https://your-app.onrender.com"; // change this
+
+// -----------------------------
+// PAGE NAVIGATION
+// -----------------------------
+function showPage(page) {
+    document.querySelectorAll(".page").forEach(p => p.classList.add("hidden"));
+    document.getElementById(page).classList.remove("hidden");
 }
 
-.container {
-    display: flex;
+
+// -----------------------------
+// DASHBOARD
+// -----------------------------
+async function loadDashboard() {
+    const res = await fetch(BASE_URL + "/dashboard");
+    const data = await res.json();
+
+    document.getElementById("total_usage").innerText = data.total_usage;
+    document.getElementById("avg_usage").innerText = data.avg_usage;
+    document.getElementById("total_bill").innerText = data.total_bill;
 }
 
-.sidebar {
-    width: 200px;
-    background: #ddd;
-    padding: 10px;
+
+// -----------------------------
+// ADD RECORD
+// -----------------------------
+async function addRecord() {
+    const data = {
+        Year: document.getElementById("year").value,
+        Month: document.getElementById("month").value,
+        Consumption: document.getElementById("consumption").value,
+        Bill: document.getElementById("bill").value,
+        Branch: document.getElementById("branch").value
+    };
+
+    await fetch(BASE_URL + "/record/manual", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(data)
+    });
+
+    alert("Record added!");
 }
 
-.content {
-    flex: 1;
-    padding: 20px;
+
+// -----------------------------
+// UPLOAD FILE
+// -----------------------------
+async function uploadFile() {
+    const fileInput = document.getElementById("file");
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+
+    await fetch(BASE_URL + "/record/upload", {
+        method: "POST",
+        body: formData
+    });
+
+    alert("File uploaded!");
 }
 
-.page {
-    display: block;
+
+// -----------------------------
+// VISUALIZATION
+// -----------------------------
+async function loadChart() {
+    const res = await fetch(BASE_URL + "/visualize");
+    const data = await res.json();
+
+    new Chart(document.getElementById("chart"), {
+        type: "line",
+        data: {
+            labels: data.months,
+            datasets: [{
+                label: "Consumption",
+                data: data.consumption
+            }]
+        }
+    });
 }
 
-.hidden {
-    display: none;
+
+// -----------------------------
+// REPORTS
+// -----------------------------
+async function loadReports() {
+    const res = await fetch(BASE_URL + "/reports");
+    const data = await res.json();
+
+    const table = document.getElementById("reportTable");
+    table.innerHTML = "";
+
+    data.forEach((row, i) => {
+        table.innerHTML += `
+            <tr>
+                <td>${row.Month}</td>
+                <td>${row.Consumption}</td>
+                <td>${row.Bill}</td>
+                <td>
+                    <button onclick="deleteRow(${i})">Delete</button>
+                </td>
+            </tr>
+        `;
+    });
 }
 
-input {
-    display: block;
-    margin: 5px 0;
+async function deleteRow(i) {
+    await fetch(BASE_URL + "/reports/delete/" + i, {
+        method: "DELETE"
+    });
+    loadReports();
 }
 
-button {
-    margin: 5px 0;
-}
+
+// -----------------------------
+// INITIAL LOAD
+// -----------------------------
+loadDashboard();
+loadReports();
