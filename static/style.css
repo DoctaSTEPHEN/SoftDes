@@ -1,24 +1,305 @@
 body {
-    font-family: Arial;
-    background: #f2f2f2;
-    text-align: center;
+    margin: 0;
+    font-family: Inter, sans-serif;
+    background: #F8F8F8;
 }
 
-.grid {
+/* =========================
+   GLOBAL LAYOUT
+========================= */
+
+.container {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 20px;
+    padding: 20px;
+    height: 100vh;
+    box-sizing: border-box;
+}
+
+/* =========================
+   SIDEBAR
+========================= */
+
+.sidebar {
+    background: #fff;
+    border-radius: 25px;
+    padding: 20px;
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.menu-item {
+    font-size: 20px;
+    font-weight: 700;
+    padding: 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    color: #333;
+}
+
+.menu-item:hover {
+    background: #eee;
+}
+
+.menu-item.active {
+    background: #4CA9AF;
+    color: white;
+}
+
+.sidebar-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+.menu-item.active .sidebar-icon {
+    filter: brightness(0) invert(1);
+}
+
+/* =========================
+   MAIN AREA
+========================= */
+
+.main {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.topbar {
+    background: #fff;
+    border-radius: 25px;
+    padding: 20px;
+    font-size: 28px;
+    font-weight: 700;
+}
+
+/* =========================
+   PAGE SYSTEM
+========================= */
+
+.page {
+    display: none;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.page.active {
+    display: flex;
+}
+
+/* =========================
+   DASHBOARD
+========================= */
+
+#dashboard-page .graph-box {
+    background: #fff;
+    border-radius: 25px;
+    height: 360px;
+    display: flex;
+    align-items: center;
     justify-content: center;
 }
 
-.card {
-    background: white;
-    padding: 15px;
-    margin: 10px;
-    width: 250px;
-    border-radius: 10px;
+#dashboard-page .graph {
+    width: 85%;
+    height: 240px;
+    border-left: 2px solid #ccc;
+    border-bottom: 2px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #aaa;
+    position: relative;
 }
 
-input {
-    display: block;
-    margin: 5px auto;
+#dashboard-page .graph::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top right, rgba(76,169,175,0.25), transparent);
+}
+
+#dashboard-page .bottom {
+    display: grid;
+    grid-template-columns: 1fr 1fr 2fr;
+    gap: 20px;
+}
+
+#dashboard-page .box {
+    background: #fff;
+    border-radius: 25px;
+    padding: 20px;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-sizing: border-box;
+}
+
+#dashboard-page .center-text {
+    text-align: center;
+}
+
+#dashboard-page .bold {
+    font-weight: 700;
+    font-size: 24px;
+}
+
+#dashboard-page .value {
+    font-size: 24px;
+    font-weight: 700;
+    margin-top: 5px;
+}
+
+.dash-icon {
+    width: 40px;
+    height: auto;
+    align-self: center;
+}
+
+/* =========================
+   RECORD PAGE
+========================= */
+
+#record-page .card-box {
+    background: #fff;
+    border-radius: 25px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+#record-page .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+#record-page .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* INPUT + SELECT FIX (IMPORTANT) */
+#record-page input,
+#record-page select {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    box-sizing: border-box;
+    font-size: 14px;
+}
+
+#record-page .btn-row {
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+#record-page .btn-add {
+    background: #238086;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+#record-page .btn-reset {
+    background: white;
+    border: 1px solid #333;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+/* =========================
+   REPORTS TABLE
+========================= */
+
+#reports-page table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: #fff;
+    border-radius: 25px;
+    overflow: hidden;
+}
+
+#reports-page th {
+    background: #F3F3F3;
+    font-weight: 700;
+    text-align: left;
+    padding: 15px;
+    border-bottom: 2px solid #D6D6D6;
+}
+
+#reports-page td {
+    padding: 15px;
+    border-bottom: 1px solid #E6E6E6;
+}
+
+#reports-page th:not(:last-child),
+#reports-page td:not(:last-child) {
+    border-right: 1px solid #E2E2E2;
+}
+
+#reports-page tr:hover td {
+    background: #F8F8F8;
+}
+
+/* =========================
+   SETTINGS
+========================= */
+
+#settings-page .setting {
+    background: #fff;
+    padding: 15px;
+    border-radius: 15px;
+    margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.setting-left {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-weight: 600;
+}
+
+.setting-icon {
+    width: 28px;
+    height: 28px;
+    object-fit: contain;
+}
+
+#settings-page .switch {
+    width: 50px;
+    height: 26px;
+    background: #ddd;
+    border-radius: 50px;
+    position: relative;
+    cursor: pointer;
+}
+
+#settings-page .switch::after {
+    content: "";
+    width: 20px;
+    height: 20px;
+    background: #666;
+    border-radius: 50%;
+    position: absolute;
+    top: 3px;
+    left: 4px;
 }
