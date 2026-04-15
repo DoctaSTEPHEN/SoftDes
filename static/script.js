@@ -1,3 +1,15 @@
+let chartInstance = null;
+
+// =========================
+// NOTIFICATION
+// =========================
+function notify(msg) {
+    alert(msg);
+}
+
+// =========================
+// ADD RECORD
+// =========================
 async function addRecord() {
     const data = {
         Year: year.value,
@@ -12,10 +24,29 @@ async function addRecord() {
         body: JSON.stringify(data)
     });
 
-    alert("Saved");
+    const result = await res.json();
+
+    if (result.error) return notify(result.error);
+
+    notify("Record added!");
     loadDashboard();
 }
 
+// =========================
+// DASHBOARD
+// =========================
+async function loadDashboard() {
+    const res = await fetch("/api/dashboard");
+    const data = await res.json();
+
+    total.innerText = data.total || 0;
+    avg.innerText = data.avg || 0;
+    bill_total.innerText = data.bill || 0;
+}
+
+// =========================
+// UPLOAD
+// =========================
 async function uploadFile() {
     const file = document.getElementById("file").files[0];
 
@@ -29,106 +60,78 @@ async function uploadFile() {
 
     const data = await res.json();
 
-    if (data.error) {
-        alert(data.error);
-    } else {
-        alert("Uploaded: " + data.rows_added);
-    }
+    notify(data.message || data.error);
 }
 
-async function loadDashboard() {
-    const res = await fetch("/api/dashboard");
-    const data = await res.json();
-
-    total.innerText = data.total;
-    avg.innerText = data.avg;
-    bill_total.innerText = data.bill;
-}
-
-async function getForecast() {
+// =========================
+// FORECAST
+// =========================
+async function loadForecast() {
     const res = await fetch("/api/forecast");
     const data = await res.json();
 
-    forecast.innerHTML = `
-        <b>Next 3 Months:</b><br>
-        ${data.future_3_months.join(", ")}
-    `;
+    if (data.error) return notify(data.error);
+
+    document.getElementById("forecast").innerHTML =
+        "Next 3 Months: " + data.future_3_months.join(", ");
+
+    notify("Forecast loaded!");
 }
 
-async function checkAnomaly() {
-    const res = await fetch("/api/anomaly");
-    const data = await res.json();
-
-    anomaly.innerHTML = data
-        .filter(d => d.status === "ANOMALY")
-        .map(d => `⚠ Month ${d.Month}`)
-        .join("<br>");
-}
-
-let chartInstance = null;
-
+// =========================
+// CHART
+// =========================
 async function loadChart() {
     const res = await fetch("/api/forecast");
     const data = await res.json();
 
-    if (data.error) {
-        alert(data.error);
-        return;
-    }
-
     const ctx = document.getElementById("chart").getContext("2d");
 
-    // destroy old chart
-    if (chartInstance) {
-        chartInstance.destroy();
-    }
-
-    // labels (months index)
-    const labels = [
-        ...Array(data.history_actual.length).keys(),
-        ...Array(data.future_3_months.length).keys().map(i => "F+" + (i + 1))
-    ];
+    if (chartInstance) chartInstance.destroy();
 
     chartInstance = new Chart(ctx, {
         type: "line",
         data: {
-            labels: labels,
-
+            labels: [...data.history_actual.map((_, i) => i)],
             datasets: [
                 {
-                    label: "Actual Consumption",
+                    label: "Actual",
                     data: data.history_actual,
-                    borderColor: "blue",
-                    fill: false
+                    borderColor: "blue"
                 },
                 {
-                    label: "Predicted History",
+                    label: "Predicted",
                     data: data.history_predicted,
-                    borderColor: "green",
-                    borderDash: [5, 5],
-                    fill: false
+                    borderColor: "green"
                 },
                 {
-                    label: "Future Forecast (3 months)",
-                    data: [
-                        ...Array(data.history_actual.length).fill(null),
-                        ...data.future_3_months
-                    ],
-                    borderColor: "red",
-                    fill: false
+                    label: "Future",
+                    data: [...Array(data.history_actual.length).fill(null), ...data.future_3_months],
+                    borderColor: "red"
                 }
             ]
-        },
-
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    position: "top"
-                }
-            }
         }
     });
+
+    notify("Chart loaded!");
 }
 
+// =========================
+// ANOMALY
+// =========================
+async function checkAnomaly() {
+    const res = await fetch("/api/anomaly");
+    const data = await res.json();
+
+    const anomalies = data.filter(d => d.status === "ANOMALY");
+
+    document.getElementById("anomaly").innerHTML =
+        anomalies.map(a => `Month ${a.Month}`).join("<br>");
+
+    notify("Anomaly checked!");
+}
+
+// =========================
+// INIT
+// =========================
 window.onload = loadDashboard;
