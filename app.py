@@ -112,71 +112,109 @@ def upload():
     global data_store
 
     try:
-        print("📁 Upload request received")
-        print("📥 FILE KEYS:", request.files.keys())
+        print("📁 UPLOAD REQUEST RECEIVED")
 
-        file = request.files.get("file")
-
-        if not file or file.filename == "":
+        # =========================
+        # 1. GET FILE
+        # =========================
+        if "file" not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
+
+        file = request.files["file"]
+
+        if file.filename == "":
+            return jsonify({"error": "Empty filename"}), 400
 
         content = file.read()
 
-        # Try CSV first
+        # =========================
+        # 2. LOAD FILE (CSV / JSON)
+        # =========================
         try:
             df = pd.read_csv(io.BytesIO(content))
-            print(f"✅ CSV loaded: {len(df)} rows")
+            print("✅ CSV loaded")
         except:
             try:
                 df = pd.read_json(io.BytesIO(content))
-                print(f"✅ JSON loaded: {len(df)} rows")
+                print("✅ JSON loaded")
             except:
                 return jsonify({"error": "Invalid file format"}), 400
 
-        # Normalize column names
-        df.columns = [col.strip().lower().replace(" ", "_") for col in df.columns]
-        print("📊 Columns:", df.columns.tolist())
+        if df.empty:
+            return jsonify({"error": "Empty dataset"}), 400
 
-        # Flexible mapping
-        col_map = {}
-        for col in df.columns:
-            if "year" in col:
-                col_map["year"] = col
-            elif "month" in col:
-                col_map["month"] = col
-            elif "consumption" in col or "usage" in col:
-                col_map["consumption"] = col
-            elif "bill" in col or "amount" in col:
-                col_map["bill"] = col
+        # =========================
+        # 3. NORMALIZE COLUMN NAMES
+        # =========================
+        df.columns = [
+            str(c).strip().lower().replace(" ", "_")
+            for c in df.columns
+        ]
 
-        df = df.rename(columns=col_map)
+        print("📊 Columns:", list(df.columns))
 
-        # Check required columns
-        if not all(col in df.columns for col in ["year", "month"]):
+        # =========================
+        # 4. SAFE COLUMN DETECTION
+        # =========================
+        def find_col(possible_names):
+            for col in df.columns:
+                for name in possible_names:
+                    if name in col:
+                        return col
+            return None
+
+        year_col = find_col(["year", "yr"])
+        month_col = find_col(["month", "mon"])
+        cons_col = find_col(["consumption", "usage", "meter"])
+        bill_col = find_col(["bill", "amount", "cost", "charge"])
+
+        if not all([year_col, month_col, cons_col, bill_col]):
             return jsonify({
                 "error": f"Missing required columns. Found: {list(df.columns)}"
             }), 400
 
-        # Clean data
+        # =========================
+        # 5. STANDARDIZE DATAFRAME
+        # =========================
+        df = df[[year_col, month_col, cons_col, bill_col]].copy()
+        df.columns = ["Year", "Month", "Consumption", "Bill"]
+
+        # =========================
+        # 6. SAFE TYPE CONVERSION (FIXED BUG HERE)
+        # =========================
+        df["Year"] = pd.to_numeric(df["Year"], errors="coerce").fillna(2023)
+        df["Month"] = pd.to_numeric(df["Month"], errors="coerce").fillna(1)
+        df["Consumption"] = pd.to_numeric(df["Consumption"], errors="coerce").fillna(0)
+        df["Bill"] = pd.to_numeric(df["Bill"], errors="coerce").fillna(0)
+
+        df["Month"] = df["Month"].clip(1, 12)
+
+        df = df.astype({
+            "Year": int,
+            "Month": int
+        })
+
+        # =========================
+        # 7. REMOVE INVALID ROWS
+        # =========================
         df = df.dropna()
-        df["year"] = pd.to_numeric(df["year"], errors="coerce").fillna(2023).astype(int)
-        df["month"] = pd.to_numeric(df["month"], errors="coerce").fillna(1).clip(1,12).astype(int)
-        df["consumption"] = pd.to_numeric(df.get("consumption", 0), errors="coerce").fillna(0)
-        df["bill"] = pd.to_numeric(df.get("bill", 0), errors="coerce").fillna(0)
 
         if df.empty:
-            return jsonify({"error": "No valid data"}), 400
+            return jsonify({"error": "No valid rows after cleaning"}), 400
 
-        # Standard format
-        df_standard = df[["year", "month", "consumption", "bill"]].copy()
-        df_standard.columns = ["Year", "Month", "Consumption", "Bill"]
+        # =========================
+        # 8. MERGE INTO STORE
+        # =========================
+        data_store = pd.concat([data_store, df], ignore_index=True)
 
-        # Save
-        data_store = pd.concat([data_store, df_standard], ignore_index=True)
+        # remove duplicates
         data_store = data_store.drop_duplicates(subset=["Year", "Month"])
 
-        print(f"💾 Added {len(df)} rows. Total: {len(data_store)}")
+        print(f"💾 Total rows: {len(data_store)}")
 
+        # =========================
+        # 9. RESPONSE
+        # =========================
         return jsonify({
             "success": True,
             "rows_added": len(df),
@@ -186,7 +224,6 @@ def upload():
     except Exception as e:
         print("❌ UPLOAD ERROR:", str(e))
         return jsonify({"error": str(e)}), 500
-
 # =========================
 # FORECAST
 # =========================
