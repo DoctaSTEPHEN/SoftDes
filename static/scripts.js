@@ -115,7 +115,7 @@ async function loadChart() {
     if (chartInstance) chartInstance.destroy();
 
     const history = data.history_actual;
-    const forecast = data.future_consumption;
+    const forecast = data.future_bill;
     const labels = data.labels;
 
     chartInstance = new Chart(ctx, {
@@ -124,13 +124,13 @@ async function loadChart() {
             labels,
             datasets: [
                 {
-                    label: "Actual",
+                    label: "Actual Bill",
                     data: history.concat(Array(forecast.length).fill(null)),
                     borderColor: "#2196F3",
                     tension: 0.4
                 },
                 {
-                    label: "Forecast",
+                    label: "Forecast Bill",
                     data: Array(history.length).fill(null).concat(forecast),
                     borderColor: "#FF5722",
                     borderDash: [5, 5],
@@ -147,7 +147,6 @@ async function loadChart() {
         }
     });
 }
-
 // =============================
 // ANOMALY
 // =============================
