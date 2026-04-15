@@ -1,82 +1,180 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Water System</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8">
+    <title>Water System App</title>
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #F8F8F8;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            padding: 20px;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .sidebar {
+            background: #fff;
+            border-radius: 25px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .menu-item {
+            font-size: 18px;
+            font-weight: 700;
+            padding: 12px;
+            border-radius: 10px;
+            cursor: pointer;
+        }
+
+        .menu-item.active {
+            background: #4CA9AF;
+            color: white;
+        }
+
+        .main {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .topbar {
+            background: #fff;
+            border-radius: 20px;
+            padding: 20px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .card {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 15px;
+        }
+
+        input {
+            display: block;
+            margin: 5px 0;
+            padding: 8px;
+        }
+
+        button {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        canvas {
+            max-height: 300px;
+        }
+    </style>
 </head>
 
 <body>
 
-<h1>💧 Water Monitoring System (MongoDB + Auto AI)</h1>
+<div class="container">
 
-<!-- ========================= -->
-<!-- ADD RECORD -->
-<!-- ========================= -->
-<div class="card">
-    <h3>Add Record</h3>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="menu-item active" onclick="show('dashboard')">Dashboard</div>
+        <div class="menu-item" onclick="show('record')">Record</div>
+        <div class="menu-item" onclick="show('reports')">Reports</div>
+    </div>
 
-    <input id="year" placeholder="Year">
-    <input id="month" placeholder="Month">
-    <input id="consumption" placeholder="Consumption">
-    <input id="bill" placeholder="Bill">
+    <!-- MAIN -->
+    <div class="main">
 
-    <button onclick="addRecord()">Add Record</button>
+        <div class="topbar" id="title">Dashboard</div>
+
+        <!-- DASHBOARD -->
+        <div class="page active" id="dashboard">
+
+            <div class="card">
+                <h3>Dashboard</h3>
+                <p>Total: <span id="total"></span></p>
+                <p>Avg: <span id="avg"></span></p>
+                <p>Bill: <span id="bill_total"></span></p>
+            </div>
+
+            <div class="card">
+                <h3>Forecast</h3>
+                <div id="forecast">Loading...</div>
+            </div>
+
+            <div class="card">
+                <h3>Chart</h3>
+                <canvas id="chart"></canvas>
+            </div>
+
+            <div class="card">
+                <h3>Anomalies</h3>
+                <div id="anomaly"></div>
+            </div>
+
+        </div>
+
+        <!-- RECORD -->
+        <div class="page" id="record">
+
+            <div class="card">
+                <h3>Add Record</h3>
+
+                <input id="year" placeholder="Year">
+                <input id="month" placeholder="Month">
+                <input id="consumption" placeholder="Consumption">
+                <input id="bill" placeholder="Bill">
+
+                <button onclick="addRecord()">Add</button>
+            </div>
+
+            <div class="card">
+                <h3>Upload CSV/JSON</h3>
+                <input type="file" id="file">
+                <button onclick="uploadFile()">Upload</button>
+            </div>
+
+        </div>
+
+        <!-- REPORTS -->
+        <div class="page" id="reports">
+            <div class="card">
+                <h3>Reports Table (placeholder)</h3>
+                <p>Connect backend list API here</p>
+            </div>
+        </div>
+
+    </div>
 </div>
 
-<!-- ========================= -->
-<!-- UPLOAD -->
-<!-- ========================= -->
-<!-- Replace the upload card -->
-<div class="card">
-    <h3>Upload CSV/JSON</h3>
-    <input type="file" id="file" accept=".csv,.json" style="margin: 10px auto; display: block;">
-    <p style="font-size: 12px; color: #666;">
-        Columns: Year, Month, Consumption, Bill
-    </p>
-    <button onclick="uploadFile()" style="background: #2196F3; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;">
-         Upload File
-    </button>
-</div>
-
-<!-- ========================= -->
-<!-- DASHBOARD -->
-<!-- ========================= -->
-<div class="card">
-    <h3>Dashboard</h3>
-    <p>Total: <span id="total"></span></p>
-    <p>Avg: <span id="avg"></span></p>
-    <p>Bill: <span id="bill_total"></span></p>
-</div>
-
-<!-- ========================= -->
-<!-- FORECAST (AUTO DISPLAY ONLY) -->
-<!-- ========================= -->
-<div class="card">
-    <h3>Forecast (Auto Generated)</h3>
-    <div id="forecast">Loading...</div>
-</div>
-
-<!-- ========================= -->
-<!-- VISUALIZATION (AUTO CHART) -->
-<!-- ========================= -->
-<div class="card">
-    <h3>Visualization (Auto Chart)</h3>
-    <canvas id="chart"></canvas>
-</div>
-
-<!-- ========================= -->
-<!-- ANOMALY -->
-<!-- ========================= -->
-<div class="card">
-    <h3>Anomaly Detection</h3>
-    <div id="anomaly"></div>
-</div>
-
-<!-- ========================= -->
-<!-- SCRIPT -->
-<!-- ========================= -->
 <script src="/static/scripts.js"></script>
+
+<script>
+function show(page) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(page).classList.add('active');
+
+    document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+    event.target.classList.add('active');
+
+    document.getElementById("title").innerText =
+        page.charAt(0).toUpperCase() + page.slice(1);
+}
+</script>
 
 </body>
 </html>
