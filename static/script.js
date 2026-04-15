@@ -77,7 +77,8 @@ async function uploadFile(event) {
     }
 
     // Show loading
-    const button = event ? event.target : document.querySelector('button[onclick="uploadFile()"]');
+    const button = event?.target;
+    const button = document.querySelector('button[onclick="uploadFile()"]');
     const originalText = button.innerHTML;
     button.innerHTML = "⏳ Uploading...";
     button.disabled = true;
