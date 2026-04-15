@@ -4,22 +4,22 @@ const BASE_URL = window.location.origin;
 // NOTIFY
 // =============================
 function notify(msg, type = "success") {
-    const div = document.createElement("div");
+    const d = document.createElement("div");
+    d.innerText = msg;
 
-    div.innerText = msg;
-    div.style.cssText = `
+    d.style.cssText = `
         position: fixed;
         top: 20px;
         right: 20px;
+        background: ${type === "error" ? "#e74c3c" : "#2ecc71"};
+        color: white;
         padding: 12px;
         border-radius: 8px;
-        color: white;
-        background: ${type === "error" ? "#e74c3c" : "#2ecc71"};
         z-index: 9999;
     `;
 
-    document.body.appendChild(div);
-    setTimeout(() => div.remove(), 2000);
+    document.body.appendChild(d);
+    setTimeout(() => d.remove(), 2000);
 }
 
 // =============================
@@ -27,15 +27,13 @@ function notify(msg, type = "success") {
 // =============================
 window.addRecord = async function () {
     const data = {
-        Year: +document.getElementById("year").value,
-        Month: +document.getElementById("month").value,
-        Consumption: +document.getElementById("consumption").value,
-        Bill: +document.getElementById("bill").value
+        Year: +year.value,
+        Month: +month.value,
+        Consumption: +consumption.value,
+        Bill: +bill.value
     };
 
-    if (Object.values(data).some(isNaN)) {
-        return notify("Fill all fields", "error");
-    }
+    if (Object.values(data).some(isNaN)) return notify("Fill all fields", "error");
 
     await fetch(`${BASE_URL}/api/add`, {
         method: "POST",
@@ -48,7 +46,7 @@ window.addRecord = async function () {
 };
 
 // =============================
-// UPLOAD (FIXED ERROR)
+// UPLOAD
 // =============================
 window.uploadFile = async function () {
     const file = document.getElementById("file").files[0];
@@ -67,45 +65,67 @@ window.uploadFile = async function () {
 };
 
 // =============================
+// RESET ALL
+// =============================
+window.resetData = async function () {
+    if (!confirm("Delete ALL data?")) return;
+
+    await fetch(`${BASE_URL}/api/reset`, { method: "POST" });
+
+    notify("Reset done");
+    refreshAll();
+};
+
+// =============================
+// DELETE ROW
+// =============================
+window.deleteRow = async function (year, month) {
+    await fetch(`${BASE_URL}/api/delete`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ Year: year, Month: month })
+    });
+
+    notify("Deleted");
+    refreshAll();
+};
+
+// =============================
 // DASHBOARD
 // =============================
 async function loadDashboard() {
-    const res = await fetch(`${BASE_URL}/api/dashboard`);
-    const d = await res.json();
+    const r = await fetch(`${BASE_URL}/api/dashboard`);
+    const d = await r.json();
 
-    document.getElementById("total").innerText = d.total.toFixed(1);
-    document.getElementById("avg").innerText = d.avg.toFixed(1);
-    document.getElementById("bill_total").innerText = d.bill.toFixed(1);
+    total.innerText = d.total.toFixed(1);
+    avg.innerText = d.avg.toFixed(1);
+    bill_total.innerText = d.bill.toFixed(1);
 }
 
 // =============================
 // FORECAST (BILL ONLY)
 // =============================
 async function loadForecast() {
-    const res = await fetch(`${BASE_URL}/api/forecast`);
-    const d = await res.json();
+    const r = await fetch(`${BASE_URL}/api/forecast`);
+    const d = await r.json();
 
-    if (d.error) {
-        document.getElementById("forecast").innerText = d.error;
-        return;
-    }
+    if (d.error) return forecast.innerText = d.error;
 
-    document.getElementById("forecast").innerHTML =
-        "₱" + d.future_bill.map(v => v.toFixed(2)).join(" → ₱");
+    forecast.innerHTML = "₱" + d.future_bill.map(v => v.toFixed(2)).join(" → ₱");
 }
 
 // =============================
-// CHART (BILL ONLY)
+// CHART
 // =============================
 let chartInstance;
 
 async function loadChart() {
-    const res = await fetch(`${BASE_URL}/api/forecast`);
-    const d = await res.json();
+    const r = await fetch(`${BASE_URL}/api/forecast`);
+    const d = await r.json();
 
     if (!d.history_actual) return;
 
-    const ctx = document.getElementById("chart").getContext("2d");
+    const ctx = chart.getContext("2d");
 
     if (chartInstance) chartInstance.destroy();
 
@@ -123,13 +143,9 @@ async function loadChart() {
                     label: "Forecast Bill",
                     data: Array(d.history_actual.length).fill(null).concat(d.future_bill),
                     borderColor: "#FF5722",
-                    borderDash: [5, 5]
+                    borderDash: [5,5]
                 }
             ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
         }
     });
 }
@@ -138,24 +154,24 @@ async function loadChart() {
 // ANOMALY
 // =============================
 async function checkAnomaly() {
-    const res = await fetch(`${BASE_URL}/api/anomaly`);
-    const d = await res.json();
+    const r = await fetch(`${BASE_URL}/api/anomaly`);
+    const d = await r.json();
 
     const a = d.filter(x => x.status === "ANOMALY");
 
-    document.getElementById("anomaly").innerHTML =
-        a.length ? a.map(x => `${x.Year}-${x.Month}: ${x.Consumption}`).join("<br>") : "No anomalies";
+    anomaly.innerHTML = a.length
+        ? a.map(x => `${x.Year}-${x.Month}: ${x.Consumption}`).join("<br>")
+        : "No anomalies";
 }
 
 // =============================
 // REPORTS
 // =============================
 async function loadReports() {
-    const res = await fetch(`${BASE_URL}/api/data`);
-    const d = await res.json();
+    const r = await fetch(`${BASE_URL}/api/data`);
+    const d = await r.json();
 
-    document.getElementById("reportTable").innerHTML =
-        d.map(x => `
+    reportTable.innerHTML = d.map(x => `
         <tr>
             <td>${x.Year}</td>
             <td>${x.Month}</td>
