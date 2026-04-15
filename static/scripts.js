@@ -1,13 +1,13 @@
 const BASE_URL = window.location.origin;
 
 // =============================
-// NOTIFY
+// NOTIFY SYSTEM
 // =============================
 function notify(msg, type = "success") {
-    const d = document.createElement("div");
-    d.innerText = msg;
+    const div = document.createElement("div");
 
-    d.style.cssText = `
+    div.innerText = msg;
+    div.style.cssText = `
         position: fixed;
         top: 20px;
         right: 20px;
@@ -18,12 +18,12 @@ function notify(msg, type = "success") {
         z-index: 9999;
     `;
 
-    document.body.appendChild(d);
-    setTimeout(() => d.remove(), 2000);
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 2500);
 }
 
 // =============================
-// ADD
+// ADD (ERROR HANDLING)
 // =============================
 window.addRecord = async function () {
     const data = {
@@ -33,168 +33,102 @@ window.addRecord = async function () {
         Bill: +bill.value
     };
 
-    if (Object.values(data).some(isNaN)) return notify("Fill all fields", "error");
+    if (Object.values(data).some(v => !v)) {
+        return notify("Missing entry value", "error");
+    }
 
-    await fetch(`${BASE_URL}/api/add`, {
+    const res = await fetch(`${BASE_URL}/api/add`, {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(data)
     });
+
+    const d = await res.json();
+
+    if (d.error) return notify(d.error, "error");
 
     notify("Added");
     refreshAll();
 };
 
 // =============================
-// UPLOAD
+// UPLOAD (ERROR HANDLING)
 // =============================
 window.uploadFile = async function () {
     const file = document.getElementById("file").files[0];
-    if (!file) return notify("No file", "error");
+
+    if (!file) return notify("Missing file upload", "error");
+
+    const allowed = ["csv", "json"];
+    const ext = file.name.split(".").pop();
+
+    if (!allowed.includes(ext)) {
+        return notify("Unsupported file upload", "error");
+    }
 
     const form = new FormData();
     form.append("file", file);
 
-    await fetch(`${BASE_URL}/api/upload`, {
+    const res = await fetch(`${BASE_URL}/api/upload`, {
         method: "POST",
         body: form
     });
 
-    notify("Uploaded");
-    refreshAll();
-};
-
-// =============================
-// RESET ALL
-// =============================
-window.resetData = async function () {
-    if (!confirm("Delete ALL data?")) return;
-
-    await fetch(`${BASE_URL}/api/reset`, { method: "POST" });
-
-    notify("Reset done");
-    refreshAll();
-};
-
-// =============================
-// DELETE ROW
-// =============================
-window.deleteRow = async function (year, month) {
-    await fetch(`${BASE_URL}/api/delete`, {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ Year: year, Month: month })
-    });
-
-    notify("Deleted");
-    refreshAll();
-};
-
-// =============================
-// DASHBOARD
-// =============================
-async function loadDashboard() {
-    const r = await fetch(`${BASE_URL}/api/dashboard`);
-    const d = await r.json();
-
-    total.innerText = d.total.toFixed(1);
-    avg.innerText = d.avg.toFixed(1);
-    bill_total.innerText = d.bill.toFixed(1);
-}
-
-// =============================
-// FORECAST (BILL ONLY)
-// =============================
-async function loadForecast() {
-    const r = await fetch(`${BASE_URL}/api/forecast`);
-    const d = await r.json();
-
-    if (d.error) return forecast.innerText = d.error;
-
-    forecast.innerHTML = "₱" + d.future_bill.map(v => v.toFixed(2)).join(" → ₱");
-}
-
-// =============================
-// CHART
-// =============================
-let chartInstance;
-
-async function loadChart() {
-    const res = await fetch(`${BASE_URL}/api/forecast`);
     const d = await res.json();
 
-    if (!d.history_actual || !d.history_actual.length) return;
+    if (d.error) return notify(d.error, "error");
 
-    const ctx = document.getElementById("chart").getContext("2d");
+    notify("Upload success");
+    refreshAll();
+};
 
-    if (chartInstance) chartInstance.destroy();
-
-    const historyLen = d.history_actual.length;
-
-    chartInstance = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels: d.labels,
-
-            datasets: [
-                {
-                    label: "Actual Bill",
-                    data: d.history_actual,
-                    borderColor: "#2196F3",
-                    tension: 0.4
-                },
-                {
-                    label: "Forecast Bill",
-                    data: [
-                        ...Array(historyLen).fill(null),
-                        ...d.future_bill
-                    ],
-                    borderColor: "#FF5722",
-                    borderDash: [5, 5],
-                    tension: 0.4
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            spanGaps: true
-        }
-    });
-}
 // =============================
-// ANOMALY
+// ANOMALY ALERT POPUP
 // =============================
 async function checkAnomaly() {
-    const r = await fetch(`${BASE_URL}/api/anomaly`);
-    const d = await r.json();
+    const res = await fetch(`${BASE_URL}/api/anomaly`);
+    const d = await res.json();
 
-    const a = d.filter(x => x.status === "ANOMALY");
+    const anomalies = d.filter(x => x.status === "ANOMALY");
 
-    anomaly.innerHTML = a.length
-        ? a.map(x => `${x.Year}-${x.Month}: ${x.Consumption}`).join("<br>")
-        : "No anomalies";
+    const el = document.getElementById("anomaly");
+
+    if (!anomalies.length) {
+        el.innerHTML = "No anomalies";
+        return;
+    }
+
+    el.innerHTML = anomalies.map(a =>
+        `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
+    ).join("<br>");
+
+    // POPUP ALERT
+    notify("⚠ Anomaly detected!", "error");
 }
 
 // =============================
-// REPORTS
+// MAINTENANCE INPUT
 // =============================
-async function loadReports() {
-    const r = await fetch(`${BASE_URL}/api/data`);
-    const d = await r.json();
+window.checkMaintenance = async function () {
+    const date = document.getElementById("maintenanceDate").value;
 
-    reportTable.innerHTML = d.map(x => `
-        <tr>
-            <td>${x.Year}</td>
-            <td>${x.Month}</td>
-            <td>${x.Consumption}</td>
-            <td>${x.Bill}</td>
-        </tr>
-    `).join("");
-}
+    if (!date) return notify("Enter maintenance date", "error");
+
+    const res = await fetch(`${BASE_URL}/api/maintenance`, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ date })
+    });
+
+    const d = await res.json();
+
+    if (d.error) return notify(d.error, "error");
+
+    notify("Next maintenance: " + d.next_maintenance);
+};
 
 // =============================
-// REFRESH
+// GLOBAL REFRESH
 // =============================
 async function refreshAll() {
     await Promise.all([
