@@ -1,18 +1,36 @@
 body {
     font-family: Arial;
-    margin: 20px;
+    margin: 0;
 }
 
-textarea {
-    width: 100%;
-    height: 150px;
+.container {
+    display: flex;
+}
+
+.sidebar {
+    width: 200px;
+    background: #ddd;
+    padding: 10px;
+}
+
+.content {
+    flex: 1;
+    padding: 20px;
+}
+
+.page {
+    display: block;
+}
+
+.hidden {
+    display: none;
+}
+
+input {
+    display: block;
+    margin: 5px 0;
 }
 
 button {
-    padding: 8px;
-}
-
-pre {
-    border: 1px solid black;
-    padding: 10px;
+    margin: 5px 0;
 }
