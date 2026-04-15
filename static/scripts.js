@@ -248,18 +248,43 @@ window.checkMaintenance = async function () {
 // REPORTS
 // =========================
 async function loadReports() {
-    const res = await fetch(`${BASE_URL}/api/data`);
-    const d = await res.json();
+    try {
+        const res = await fetch(`${BASE_URL}/api/data`);
 
-    document.getElementById("reportTable").innerHTML =
-        d.map(x => `
-            <tr>
-                <td>${x.Year}</td>
-                <td>${x.Month}</td>
-                <td>${x.Consumption}</td>
-                <td>${x.Bill}</td>
-            </tr>
-        `).join("");
+        if (!res.ok) {
+            console.error("API /api/data failed:", res.status);
+            document.getElementById("reportTable").innerHTML =
+                "<tr><td colspan='4'>No data available (server error)</td></tr>";
+            return;
+        }
+
+        const data = await res.json();
+
+        const table = document.getElementById("reportTable");
+        table.innerHTML = "";
+
+        if (!data.length) {
+            table.innerHTML =
+                "<tr><td colspan='4'>No records yet</td></tr>";
+            return;
+        }
+
+        data.forEach(d => {
+            table.innerHTML += `
+                <tr>
+                    <td>${d.Year}</td>
+                    <td>${d.Month}</td>
+                    <td>${d.Consumption}</td>
+                    <td>${d.Bill}</td>
+                </tr>
+            `;
+        });
+
+    } catch (e) {
+        console.error("Report load error:", e);
+        document.getElementById("reportTable").innerHTML =
+            "<tr><td colspan='4'>Failed to load data</td></tr>";
+    }
 }
 
 // =========================
