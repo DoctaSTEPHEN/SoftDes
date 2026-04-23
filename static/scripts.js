@@ -1,244 +1,225 @@
 const BASE_URL = window.location.origin;
+let chartInstance = null;
 
-// =========================
-// NOTIFICATION
-// =========================
-function notify(msg, type = "success") {
-    const div = document.createElement("div");
+// PAGE
+function showPage(page, el) {
 
-    div.innerText = msg;
-    div.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        background: ${type === "error" ? "#e74c3c" : "#2ecc71"};
-        color: white;
-        padding: 12px;
-        border-radius: 8px;
-        z-index: 9999;
-    `;
+    document.querySelectorAll(".menu-item")
+        .forEach(x => x.classList.remove("active"));
 
-    document.body.appendChild(div);
-    setTimeout(() => div.remove(), 2500);
+    el.classList.add("active");
+
+    document.querySelectorAll(".page")
+        .forEach(x => x.classList.remove("active"));
+
+    document.getElementById(page).classList.add("active");
+
+    document.getElementById("title").innerText =
+        page.charAt(0).toUpperCase() + page.slice(1);
+
+    if (page === "reports") loadReports();
 }
 
-// =========================
-// SAFE FETCH (IMPORTANT FIX)
-// =========================
+// FETCH
 async function safeFetch(url) {
     try {
-        const res = await fetch(url);
-
-        if (!res.ok) {
-            console.error("API error:", url, res.status);
-            return null;
-        }
-
-        return await res.json();
-    } catch (e) {
-        console.error("Network error:", url, e);
+        const r = await fetch(url);
+        return await r.json();
+    } catch {
         return null;
     }
 }
 
-// =========================
-// ADD RECORD
-// =========================
-window.addRecord = async function () {
+// ADD
+async function addRecord() {
+
     const data = {
-        Year: +document.getElementById("year").value,
-        Month: +document.getElementById("month").value,
-        Consumption: +document.getElementById("consumption").value,
-        Bill: +document.getElementById("bill").value
+        Year: +year.value,
+        Month: +month.value,
+        Consumption: +consumption.value,
+        Bill: +bill.value
     };
 
-    if (Object.values(data).some(v => !v)) {
-        return notify("Missing entry value", "error");
-    }
-
-    const res = await fetch(`${BASE_URL}/api/add`, {
+    await fetch(`${BASE_URL}/api/add`, {
         method: "POST",
-        headers: {"Content-Type": "application/json"},
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
     });
 
-    const d = await res.json();
-    if (d.error) return notify(d.error, "error");
-
-    notify("Record added");
     refreshAll();
-};
+}
 
-// =========================
-// UPLOAD FIX
-// =========================
-window.uploadFile = async function () {
-    const file = document.getElementById("file").files[0];
+// RESET
+async function resetData() {
 
-    if (!file) return notify("Missing file upload", "error");
+    if (!confirm("Delete all records?")) return;
 
-    const ext = file.name.split(".").pop();
-    if (!["csv", "json"].includes(ext)) {
-        return notify("Unsupported file upload", "error");
-    }
-
-    const form = new FormData();
-    form.append("file", file);
-
-    const res = await fetch(`${BASE_URL}/api/upload`, {
-        method: "POST",
-        body: form
+    await fetch(`${BASE_URL}/api/reset`, {
+        method: "POST"
     });
 
-    const d = await res.json();
-    if (d.error) return notify(d.error, "error");
-
-    notify("Upload success");
     refreshAll();
-};
+}
 
-// =========================
+// DELETE ENTRY
+async function deleteRow(index) {
+
+    await fetch(`${BASE_URL}/api/delete/${index}`, {
+        method: "POST"
+    });
+
+    loadReports();
+    refreshAll();
+}
+
+// EDIT ENTRY
+async function editRow(index, y, m, c, b) {
+
+    const Year = prompt("Year:", y);
+    if (Year === null) return;
+
+    const Month = prompt("Month:", m);
+    if (Month === null) return;
+
+    const Consumption = prompt("Usage:", c);
+    if (Consumption === null) return;
+
+    const Bill = prompt("Bill:", b);
+    if (Bill === null) return;
+
+    await fetch(`${BASE_URL}/api/edit/${index}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            Year, Month, Consumption, Bill
+        })
+    });
+
+    loadReports();
+    refreshAll();
+}
+
+// REPORTS
+async function loadReports() {
+
+    const data = await safeFetch(`${BASE_URL}/api/data`);
+    const table = document.getElementById("reportTable");
+
+    table.innerHTML = "";
+
+    if (!data || data.length === 0) {
+        table.innerHTML =
+        `<tr><td colspan="5">No records</td></tr>`;
+        return;
+    }
+
+    data.forEach((d, i) => {
+
+        table.innerHTML += `
+        <tr>
+            <td>${d.Year}</td>
+            <td>${d.Month}</td>
+            <td>${d.Consumption}</td>
+            <td>${d.Bill}</td>
+            <td class="actions">
+
+                <i class="fa-solid fa-pen edit-btn"
+                onclick="editRow(${i},
+                '${d.Year}',
+                '${d.Month}',
+                '${d.Consumption}',
+                '${d.Bill}')"></i>
+
+                <i class="fa-solid fa-trash delete-btn"
+                onclick="deleteRow(${i})"></i>
+
+            </td>
+        </tr>`;
+    });
+}
+
 // DASHBOARD
-// =========================
 async function loadDashboard() {
+
     const d = await safeFetch(`${BASE_URL}/api/dashboard`);
     if (!d) return;
 
-    document.getElementById("total").innerText = d.total?.toFixed(1) || 0;
-    document.getElementById("avg").innerText = d.avg?.toFixed(1) || 0;
-    document.getElementById("bill_total").innerText = d.bill?.toFixed(1) || 0;
+    total.innerText = d.total.toFixed(1);
+    avg.innerText = d.avg.toFixed(1);
+    bill_total.innerText = d.bill.toFixed(1);
 }
 
-// =========================
 // FORECAST
-// =========================
 async function loadForecast() {
+
+    const d = await safeFetch(`${BASE_URL}/api/forecast`);
+
+    if (!d || d.error) {
+        forecast.innerText = "Need 3 records";
+        return;
+    }
+
+    forecast.innerText =
+        d.future_bill.map(x => "₱" + x.toFixed(2)).join(" → ");
+}
+
+// ANOMALY
+async function loadAnomaly() {
+
+    const d = await safeFetch(`${BASE_URL}/api/anomaly`);
+    if (!d) return;
+
+    const bad = d.filter(x => x.status === "ANOMALY");
+
+    anomaly.innerHTML = bad.length ?
+        bad.map(a => `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`).join("<br>")
+        : "No anomalies";
+}
+
+// CHART
+async function loadChart() {
+
     const d = await safeFetch(`${BASE_URL}/api/forecast`);
     if (!d || d.error) return;
 
-    document.getElementById("forecast").innerHTML =
-        "₱ " + d.future_bill.map(v => v.toFixed(2)).join(" → ₱ ");
-}
-
-// =========================
-// CHART
-// =========================
-let chartInstance;
-
-async function loadChart() {
-    const d = await safeFetch(`${BASE_URL}/api/forecast`);
-    if (!d || !d.history_actual) return;
-
-    const ctx = document.getElementById("chart").getContext("2d");
+    const ctx = document.getElementById("chart");
 
     if (chartInstance) chartInstance.destroy();
-
-    const len = d.history_actual.length;
 
     chartInstance = new Chart(ctx, {
         type: "line",
         data: {
-            labels: [
-                ...Array(len).fill("").map((_, i) => `M${i + 1}`),
-                "F1", "F2", "F3"
-            ],
+            labels: d.labels,
             datasets: [
                 {
-                    label: "Actual Bill",
-                    data: d.history_actual,
-                    borderColor: "#2196F3"
+                    label: "Bill",
+                    data: [...d.history_actual, null, null, null]
                 },
                 {
-                    label: "Forecast Bill",
+                    label: "Forecast",
                     data: [
-                        ...Array(len).fill(null),
+                        ...Array(d.history_actual.length).fill(null),
                         ...d.future_bill
                     ],
-                    borderColor: "#FF5722",
                     borderDash: [5, 5]
                 }
             ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false
         }
     });
 }
 
-// =========================
-// ANOMALY
-// =========================
-async function checkAnomaly() {
-    const d = await safeFetch(`${BASE_URL}/api/anomaly`);
-    if (!d) return;
-
-    const anomalies = d.filter(x => x.status === "ANOMALY");
-
-    const el = document.getElementById("anomaly");
-
-    if (!anomalies.length) {
-        el.innerHTML = "No anomalies";
-        return;
-    }
-
-    el.innerHTML = anomalies.map(a =>
-        `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
-    ).join("<br>");
-
-    notify("Anomaly detected!", "error");
-}
-
-// =========================
-// REPORTS (🔥 FIXED)
-// =========================
-async function loadReports() {
-    const data = await safeFetch(`${BASE_URL}/api/data`);
-
-    const table = document.getElementById("reportTable");
-    table.innerHTML = "";
-
-    // 🔥 FIX: server error OR empty
-    if (!data || !Array.isArray(data) || data.length === 0) {
-        table.innerHTML = `
-            <tr>
-                <td colspan="4" style="text-align:center; padding:15px;">
-                    No records available
-                </td>
-            </tr>
-        `;
-        return;
-    }
-
-    data.forEach(d => {
-        table.innerHTML += `
-            <tr>
-                <td>${d.Year}</td>
-                <td>${d.Month}</td>
-                <td>${d.Consumption}</td>
-                <td>${d.Bill}</td>
-            </tr>
-        `;
-    });
-}
-
-// =========================
-// RESET
-// =========================
-window.resetData = async function () {
-    if (!confirm("Delete all data?")) return;
-
-    await fetch(`${BASE_URL}/api/reset`, { method: "POST" });
-
-    notify("Reset done");
-    refreshAll();
-};
-
-// =========================
 // REFRESH
-// =========================
 async function refreshAll() {
+
     await Promise.all([
         loadDashboard(),
         loadForecast(),
+        loadAnomaly(),
         loadChart(),
-        checkAnomaly(),
         loadReports()
     ]);
 }
