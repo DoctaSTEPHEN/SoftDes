@@ -344,13 +344,13 @@ async function checkMaintenanceToday() {
 // REFRESH
 // =========================
 async function refreshAll() {
-
     await Promise.all([
         loadDashboard(),
         loadForecast(),
         loadAnomaly(),
         loadChart(),
-        loadReports()
+        loadReports(),
+        checkMaintenanceToday()
     ]);
 }
 
