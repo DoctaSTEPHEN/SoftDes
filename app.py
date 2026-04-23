@@ -23,8 +23,9 @@ except:
 # =========================
 # DATA STORE
 # =========================
-data_store = pd.DataFrame(columns=["Year", "Month", "Consumption", "Bill"])
-
+data_store = pd.DataFrame(
+    columns=["Year", "Month", "Consumption", "Bill"]
+)
 
 # =========================
 # HOME
@@ -35,20 +36,20 @@ def home():
 
 
 # =========================
-# ADD RECORD (FIXED)
+# ADD RECORD
 # =========================
 @app.route("/api/add", methods=["POST"])
 def add_record():
     global data_store
 
     data = request.json
-
     required = ["Year", "Month", "Consumption", "Bill"]
 
-    # FIXED validation
     for r in required:
         if r not in data or str(data[r]).strip() == "":
-            return jsonify({"error": f"Missing entry value: {r}"}), 400
+            return jsonify({
+                "error": f"Missing entry value: {r}"
+            }), 400
 
     try:
         row = {
@@ -58,19 +59,28 @@ def add_record():
             "Bill": float(data["Bill"])
         }
 
-        data_store = pd.concat([data_store, pd.DataFrame([row])], ignore_index=True)
+        data_store = pd.concat(
+            [data_store, pd.DataFrame([row])],
+            ignore_index=True
+        )
 
-        return jsonify({"message": "added", "rows": len(data_store)})
+        return jsonify({
+            "message": "added",
+            "rows": len(data_store)
+        })
 
     except Exception as e:
-        return jsonify({"error": f"Invalid input format: {str(e)}"}), 400
+        return jsonify({
+            "error": f"Invalid input format: {str(e)}"
+        }), 400
 
 
 # =========================
-# DASHBOARD (NO DUPLICATES)
+# DASHBOARD
 # =========================
 @app.route("/api/dashboard")
 def dashboard():
+
     if data_store.empty:
         return jsonify({
             "total": 0,
@@ -82,25 +92,29 @@ def dashboard():
     return jsonify({
         "total": float(data_store["Consumption"].sum()),
         "avg": float(data_store["Consumption"].mean()),
-        "bill": float(data_store["Bill"].sum()),
+        "bill": float(data_store["Bill"].mean()),
         "records": len(data_store)
     })
 
 
 # =========================
-# GET DATA (NO DUPLICATES)
+# DATA
 # =========================
 @app.route("/api/data")
 def get_data():
+
     if data_store.empty:
         return jsonify([])
 
-    df = data_store.sort_values(["Year", "Month"]).reset_index(drop=True)
+    df = data_store.sort_values(
+        ["Year", "Month"]
+    ).reset_index(drop=True)
+
     return jsonify(df.to_dict("records"))
 
 
 # =========================
-# UPLOAD (FIXED TSV/CSV AUTO DETECT)
+# UPLOAD
 # =========================
 @app.route("/api/upload", methods=["POST"])
 def upload():
@@ -108,57 +122,59 @@ def upload():
 
     try:
         if "file" not in request.files:
-            return jsonify({"error": "No file uploaded"}), 400
+            return jsonify({
+                "error": "No file uploaded"
+            }), 400
 
         file = request.files["file"]
 
         if file.filename == "":
-            return jsonify({"error": "Empty filename"}), 400
+            return jsonify({
+                "error": "Empty filename"
+            }), 400
 
-        filename = file.filename.lower()
         content = file.read()
-
         df = None
 
-        # =========================
-        # FIX 1: Try CSV / TSV robustly
-        # =========================
         try:
-            df = pd.read_csv(io.BytesIO(content), delimiter=None, engine="python")
+            df = pd.read_csv(
+                io.BytesIO(content),
+                delimiter=None,
+                engine="python"
+            )
         except:
             pass
 
-        # =========================
-        # FIX 2: Force TAB fallback (VERY IMPORTANT FOR YOUR FILE)
-        # =========================
         if df is None:
             try:
-                df = pd.read_csv(io.BytesIO(content), sep="\t")
+                df = pd.read_csv(
+                    io.BytesIO(content),
+                    sep="\t"
+                )
             except:
                 pass
 
-        # =========================
-        # FIX 3: Excel-style fallback
-        # =========================
         if df is None:
             try:
-                df = pd.read_excel(io.BytesIO(content))
+                df = pd.read_excel(
+                    io.BytesIO(content)
+                )
             except:
                 pass
 
-        # =========================
-        # FAIL SAFE
-        # =========================
         if df is None:
-            return jsonify({"error": "Cannot parse file format"}), 400
+            return jsonify({
+                "error": "Cannot parse file format"
+            }), 400
 
-        # normalize headers
-        df.columns = [str(c).strip().lower() for c in df.columns]
+        df.columns = [
+            str(c).strip().lower()
+            for c in df.columns
+        ]
 
-        # flexible column matching
-        def find(col):
+        def find(name):
             for c in df.columns:
-                if col in c:
+                if name in c:
                     return c
             return None
 
@@ -169,21 +185,30 @@ def upload():
 
         if not all([y, m, c, b]):
             return jsonify({
-                "error": "Missing required columns (Year, Month, Consumption, Bill)"
+                "error":
+                "Missing required columns"
             }), 400
 
         df = df[[y, m, c, b]]
-        df.columns = ["Year", "Month", "Consumption", "Bill"]
+        df.columns = [
+            "Year",
+            "Month",
+            "Consumption",
+            "Bill"
+        ]
 
-        # force numeric safety
-        df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
-        df["Month"] = pd.to_numeric(df["Month"], errors="coerce")
-        df["Consumption"] = pd.to_numeric(df["Consumption"], errors="coerce")
-        df["Bill"] = pd.to_numeric(df["Bill"], errors="coerce")
+        for col in df.columns:
+            df[col] = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            )
 
         df = df.dropna()
 
-        data_store = pd.concat([data_store, df], ignore_index=True)
+        data_store = pd.concat(
+            [data_store, df],
+            ignore_index=True
+        )
 
         return jsonify({
             "message": "Upload success",
@@ -191,11 +216,17 @@ def upload():
         })
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 
 # =========================
-# ANOMALY
+# ANOMALY (UPGRADED)
+# Rules:
+# Consumption > mean + 2std
+# OR Bill > mean_bill + 2std
+# OR Consumption +30% from last month
 # =========================
 @app.route("/api/anomaly")
 def anomaly():
@@ -203,15 +234,52 @@ def anomaly():
     if data_store.empty:
         return jsonify([])
 
-    mean = data_store["Consumption"].mean()
-    std = data_store["Consumption"].std()
-
-    threshold = mean + (2 * std if std > 0 else 0)
-
     df = data_store.copy()
-    df["status"] = df["Consumption"].apply(
-        lambda x: "ANOMALY" if x > threshold else "NORMAL"
-    )
+
+    df = df.sort_values(
+        ["Year", "Month"]
+    ).reset_index(drop=True)
+
+    mean_c = df["Consumption"].mean()
+    std_c = df["Consumption"].std()
+
+    mean_b = df["Bill"].mean()
+    std_b = df["Bill"].std()
+
+    cons_limit = mean_c + (2 * std_c if std_c > 0 else 0)
+    bill_limit = mean_b + (2 * std_b if std_b > 0 else 0)
+
+    status_list = []
+
+    prev_consumption = None
+
+    for _, row in df.iterrows():
+
+        current_c = row["Consumption"]
+        current_b = row["Bill"]
+
+        is_anomaly = False
+
+        # Rule 1
+        if current_c > cons_limit:
+            is_anomaly = True
+
+        # Rule 2
+        if current_b > bill_limit:
+            is_anomaly = True
+
+        # Rule 3
+        if prev_consumption is not None:
+            if current_c > prev_consumption * 1.30:
+                is_anomaly = True
+
+        status_list.append(
+            "ANOMALY" if is_anomaly else "NORMAL"
+        )
+
+        prev_consumption = current_c
+
+    df["status"] = status_list
 
     return jsonify(df.to_dict("records"))
 
@@ -223,19 +291,19 @@ def anomaly():
 def forecast():
 
     if data_store.empty or len(data_store) < 3:
-        return jsonify({"error": "Need at least 3 records"})
+        return jsonify({
+            "error": "Need at least 3 records"
+        })
 
-    df = data_store.sort_values(["Year", "Month"]).reset_index(drop=True)
+    df = data_store.sort_values(
+        ["Year", "Month"]
+    ).reset_index(drop=True)
 
-    # =========================
-    # REAL FEATURE ENGINEERING
-    # =========================
     df["Index"] = np.arange(len(df))
 
     X = df[["Index", "Month", "Consumption"]]
     y = df["Bill"]
 
-    # retrain model properly on real data
     model.fit(X, y)
 
     history = y.tolist()
@@ -243,36 +311,36 @@ def forecast():
     last_index = len(df)
     last_month = int(df["Month"].iloc[-1])
 
-    # =========================
-    # FUTURE INPUT BUILDING
-    # =========================
+    avg_consumption = df["Consumption"].mean()
+
     future_rows = []
     labels = []
-
-    avg_consumption = df["Consumption"].mean()
 
     for i in range(3):
 
         month = ((last_month + i) % 12) + 1
 
         future_rows.append([
-            last_index + i,      # trend index
-            month,               # seasonality
-            avg_consumption      # expected usage baseline
+            last_index + i,
+            month,
+            avg_consumption
         ])
 
         labels.append(f"F{i+1}")
 
-    future = model.predict(np.array(future_rows)).tolist()
+    future = model.predict(
+        np.array(future_rows)
+    ).tolist()
 
-    # =========================
-    # RETURN FIXED STRUCTURE
-    # =========================
     return jsonify({
-        "labels": [f"{r.Year}-{r.Month}" for _, r in df.iterrows()] + labels,
+        "labels":
+        [f"{r.Year}-{r.Month}"
+         for _, r in df.iterrows()] + labels,
+
         "history_actual": history,
         "future_bill": future
     })
+
 
 # =========================
 # MAINTENANCE
@@ -291,11 +359,14 @@ def maintenance():
         next_date = base_date + timedelta(days=90)
 
         return jsonify({
-            "next_maintenance": next_date.strftime("%Y-%m-%d")
+            "next_maintenance":
+            next_date.strftime("%Y-%m-%d")
         })
 
     except:
-        return jsonify({"error": "Invalid date format"}), 400
+        return jsonify({
+            "error": "Invalid date format"
+        }), 400
 
 
 # =========================
@@ -304,8 +375,12 @@ def maintenance():
 @app.route("/api/reset", methods=["POST"])
 def reset():
     global data_store
+
     data_store = data_store.iloc[0:0]
-    return jsonify({"message": "reset done"})
+
+    return jsonify({
+        "message": "reset done"
+    })
 
 
 # =========================
