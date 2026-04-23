@@ -113,19 +113,47 @@ def upload():
 
         content = file.read()
 
+        # read file
         try:
             df = pd.read_csv(io.BytesIO(content))
         except:
             df = pd.read_json(io.BytesIO(content))
 
+        # clean column names
+        df.columns = [c.strip().lower() for c in df.columns]
+
+        # FIX: remove commas from numbers
+        for col in df.columns:
+            df[col] = df[col].astype(str).str.replace(",", "")
+
+        # map columns
+        def find(names):
+            for c in df.columns:
+                for n in names:
+                    if n in c:
+                        return c
+            return None
+
+        y = find(["year"])
+        m = find(["month"])
+        c = find(["consumption"])
+        b = find(["bill"])
+
+        if not all([y, m, c, b]):
+            return jsonify({"error": "Missing required columns"}), 400
+
+        df = df[[y, m, c, b]]
         df.columns = ["Year", "Month", "Consumption", "Bill"]
 
-        data_store = pd.concat(
-            [data_store, df],
-            ignore_index=True
-        )
+        # convert safely
+        df["Year"] = df["Year"].astype(int)
+        df["Month"] = df["Month"].astype(int)
+        df["Consumption"] = df["Consumption"].astype(float)
+        df["Bill"] = df["Bill"].astype(float)
 
-        return jsonify({"message": "uploaded"})
+        data_store = pd.concat([data_store, df], ignore_index=True)
+
+        return jsonify({"rows_added": len(df)})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
