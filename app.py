@@ -104,60 +104,60 @@ def upload():
 
     try:
         if "file" not in request.files:
-            return jsonify({"error": "No file"}), 400
+            return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files["file"]
 
         if file.filename == "":
-            return jsonify({"error": "No file"}), 400
+            return jsonify({"error": "No file selected"}), 400
 
         content = file.read()
 
-        # read file
+        # Try normal CSV first
         try:
             df = pd.read_csv(io.BytesIO(content))
         except:
-            df = pd.read_json(io.BytesIO(content))
+            df = None
 
-        # clean column names
-        df.columns = [c.strip().lower() for c in df.columns]
+        # If only one column, try TAB separated
+        if df is None or len(df.columns) == 1:
+            try:
+                df = pd.read_csv(io.BytesIO(content), sep="\t")
+            except:
+                pass
 
-        # FIX: remove commas from numbers
-        for col in df.columns:
-            df[col] = df[col].astype(str).str.replace(",", "")
+        # Final fallback
+        if df is None or len(df.columns) == 1:
+            return jsonify({"error": "Invalid file format"}), 400
 
-        # map columns
-        def find(names):
-            for c in df.columns:
-                for n in names:
-                    if n in c:
-                        return c
-            return None
+        # clean headers
+        df.columns = [c.strip() for c in df.columns]
 
-        y = find(["year"])
-        m = find(["month"])
-        c = find(["consumption"])
-        b = find(["bill"])
+        # keep needed columns
+        needed = ["Year", "Month", "Consumption", "Bill"]
 
-        if not all([y, m, c, b]):
+        if not all(col in df.columns for col in needed):
             return jsonify({"error": "Missing required columns"}), 400
 
-        df = df[[y, m, c, b]]
-        df.columns = ["Year", "Month", "Consumption", "Bill"]
+        df = df[needed]
 
-        # convert safely
-        df["Year"] = df["Year"].astype(int)
-        df["Month"] = df["Month"].astype(int)
-        df["Consumption"] = df["Consumption"].astype(float)
-        df["Bill"] = df["Bill"].astype(float)
+        # numeric convert
+        df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
+        df["Month"] = pd.to_numeric(df["Month"], errors="coerce")
+        df["Consumption"] = pd.to_numeric(df["Consumption"], errors="coerce")
+        df["Bill"] = pd.to_numeric(df["Bill"], errors="coerce")
+
+        df = df.dropna()
 
         data_store = pd.concat([data_store, df], ignore_index=True)
 
-        return jsonify({"rows_added": len(df)})
+        return jsonify({
+            "message": "Upload success",
+            "rows_added": len(df)
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 # =========================
 # ANOMALY
