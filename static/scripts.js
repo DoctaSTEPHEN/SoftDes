@@ -182,10 +182,11 @@ async function loadDashboard() {
 
     const d = await safeFetch(`${BASE_URL}/api/dashboard`);
     if (!d) return;
-
+    
     document.getElementById("total").innerText = d.total.toFixed(1);
     document.getElementById("avg").innerText = d.avg.toFixed(1);
     document.getElementById("bill_total").innerText = d.bill.toFixed(1);
+    document.getElementById("nextMaintenance").innerText = "Click Set Date";
 }
 
 // =========================
@@ -282,6 +283,42 @@ async function loadChart() {
             maintainAspectRatio: false
         }
     });
+}
+
+
+// show/hide calendar
+function toggleCalendar() {
+    const box = document.getElementById("calendarBox");
+    box.style.display = box.style.display === "none" ? "block" : "none";
+}
+
+// send selected date to backend
+async function setMaintenance() {
+
+    const date = document.getElementById("maintenanceDate").value;
+
+    if (!date) {
+        alert("Select a date first");
+        return;
+    }
+
+    const res = await fetch(`${BASE_URL}/api/maintenance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date })
+    });
+
+    const d = await res.json();
+
+    if (d.error) {
+        alert(d.error);
+        return;
+    }
+
+    document.getElementById("nextMaintenance").innerText =
+        d.next_maintenance;
+
+    document.getElementById("calendarBox").style.display = "none";
 }
 
 // =========================
