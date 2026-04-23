@@ -227,32 +227,52 @@ def forecast():
 
     df = data_store.sort_values(["Year", "Month"]).reset_index(drop=True)
 
-    history = df["Bill"].tolist()
+    # =========================
+    # REAL FEATURE ENGINEERING
+    # =========================
+    df["Index"] = np.arange(len(df))
 
-    X = np.column_stack([
-        np.arange(len(df)),
-        df["Month"].values
-    ])
+    X = df[["Index", "Month", "Consumption"]]
+    y = df["Bill"]
 
-    last_month = int(df["Month"].iloc[-1])
+    # retrain model properly on real data
+    model.fit(X, y)
+
+    history = y.tolist()
+
     last_index = len(df)
+    last_month = int(df["Month"].iloc[-1])
 
-    future_X = []
+    # =========================
+    # FUTURE INPUT BUILDING
+    # =========================
+    future_rows = []
     labels = []
 
+    avg_consumption = df["Consumption"].mean()
+
     for i in range(3):
-        month = ((last_month + i - 1) % 12) + 1
-        future_X.append([last_index + i, month])
+
+        month = ((last_month + i) % 12) + 1
+
+        future_rows.append([
+            last_index + i,      # trend index
+            month,               # seasonality
+            avg_consumption      # expected usage baseline
+        ])
+
         labels.append(f"F{i+1}")
 
-    future = model.predict(np.array(future_X)).tolist()
+    future = model.predict(np.array(future_rows)).tolist()
 
+    # =========================
+    # RETURN FIXED STRUCTURE
+    # =========================
     return jsonify({
         "labels": [f"{r.Year}-{r.Month}" for _, r in df.iterrows()] + labels,
         "history_actual": history,
         "future_bill": future
     })
-
 
 # =========================
 # MAINTENANCE
