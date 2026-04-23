@@ -2,14 +2,14 @@
 ROOT COLORS
 ========================= */
 :root{
-    --primary:#170C79;
-    --cream:#EFE3CA;
-    --blue:#56B6C6;
-    --cyan:#8ACBD0;
-    --accent:#C2D099;
-    --white:#ffffff;
-    --text:#222;
-    --muted:#666;
+    --primary:#00396F;
+    --cream:#FFF9F9;
+    --blue:#089DD9;
+    --cyan:#89D86E;
+    --accent:#082118;
+    --white:#FFF9F9;
+    --text:#082118;
+    --muted:#555;
     --danger:#e74c3c;
     --shadow:0 10px 25px rgba(0,0,0,.08);
 }
@@ -29,7 +29,7 @@ html{
 
 body{
     font-family:Inter,sans-serif;
-    background:linear-gradient(135deg,var(--cream),#fffaf2);
+    background:linear-gradient(135deg,var(--cream),#f2eeee);
     color:var(--text);
     min-height:100vh;
 }
@@ -49,7 +49,7 @@ LAYOUT
 SIDEBAR
 ========================= */
 .sidebar{
-    background:linear-gradient(180deg,var(--primary),#2514a8);
+    background:linear-gradient(180deg,var(--primary),var(--accent));
     color:var(--white);
     border-radius:28px;
     padding:24px;
@@ -110,13 +110,13 @@ MENU
 }
 
 .menu-item:hover{
-    background:rgba(255,255,255,.14);
+    background:rgba(255,255,255,.10);
     transform:translateX(3px);
 }
 
 .menu-item.active{
-    background:var(--accent);
-    color:#111;
+    background:var(--cyan);
+    color:var(--accent);
     font-weight:700;
 }
 
@@ -220,11 +220,11 @@ ICONS
     box-shadow:0 8px 15px rgba(0,0,0,.08);
 }
 
-.blue{ background:var(--blue); }
-.cyan{ background:var(--cyan); }
+.blue{ background:var(--blue); color:#fff; }
+.cyan{ background:var(--cyan); color:var(--accent); }
 .green{
-    background:var(--accent);
-    color:#111;
+    background:var(--cyan);
+    color:var(--accent);
 }
 .purple{ background:var(--primary); }
 .red{ background:var(--danger); }
@@ -269,10 +269,9 @@ select{
 input:focus,
 select:focus{
     border-color:var(--blue);
-    box-shadow:0 0 0 3px rgba(86,182,198,.15);
+    box-shadow:0 0 0 3px rgba(8,157,217,.15);
 }
 
-/* hide default date icon spacing fix */
 input[type="date"]{
     cursor:pointer;
 }
@@ -300,7 +299,7 @@ button:hover{
 }
 
 .btn:hover{
-    background:#46a8b8;
+    background:#0686b8;
 }
 
 .btn-danger{
@@ -338,11 +337,11 @@ th,td{
 }
 
 tr:nth-child(even){
-    background:#f8f8f8;
+    background:rgba(0,57,111,.03);
 }
 
 tr:hover td{
-    background:#eef8fa;
+    background:rgba(8,157,217,.05);
 }
 
 /* action icons/buttons */
@@ -413,7 +412,7 @@ POPUP MODAL
 .popup-overlay{
     position:fixed;
     inset:0;
-    background:rgba(0,0,0,.45);
+    background:rgba(8,33,24,.60);
     display:none;
     align-items:center;
     justify-content:center;
@@ -467,7 +466,6 @@ POPUP MODAL
     min-width:140px;
 }
 
-/* if today lock mode */
 .popup-lock .popup-btn{
     display:none;
 }
