@@ -1,11 +1,16 @@
 const BASE_URL = window.location.origin;
 let chartInstance = null;
 
-// =========================
-// PAGE SWITCH
-// =========================
-function showPage(page, el) {
+/* =====================================
+   POPUP FLAGS (session only)
+===================================== */
+let maintenanceClosed = false;
+let anomalyClosed = false;
 
+/* =====================================
+   PAGE
+===================================== */
+function showPage(page, el) {
     document.querySelectorAll(".menu-item")
         .forEach(x => x.classList.remove("active"));
 
@@ -14,124 +19,123 @@ function showPage(page, el) {
     document.querySelectorAll(".page")
         .forEach(x => x.classList.remove("active"));
 
-    const target = document.getElementById(page);
-    if (target) target.classList.add("active");
+    document.getElementById(page).classList.add("active");
 
-    const title = document.getElementById("title");
-    if (title) {
-        title.innerText =
-            page.charAt(0).toUpperCase() + page.slice(1);
-    }
+    document.getElementById("title").innerText =
+        page.charAt(0).toUpperCase() + page.slice(1);
 
     if (page === "reports") loadReports();
 }
 
-// =========================
-// SAFE FETCH
-// =========================
-async function safeFetch(url, options = {}) {
+/* =====================================
+   FETCH
+===================================== */
+async function safeFetch(url) {
     try {
-        const res = await fetch(url, options);
-        return await res.json();
-    } catch (err) {
+        const r = await fetch(url);
+        return await r.json();
+    } catch {
         return null;
     }
 }
 
-// =========================
-// ADD RECORD
-// =========================
+/* =====================================
+   ADD RECORD
+===================================== */
 async function addRecord() {
 
     const data = {
-        Year: document.getElementById("year").value,
-        Month: document.getElementById("month").value,
-        Consumption: document.getElementById("consumption").value,
-        Bill: document.getElementById("bill").value
+        Year: year.value,
+        Month: month.value,
+        Consumption: consumption.value,
+        Bill: bill.value
     };
 
-    const res = await safeFetch(`${BASE_URL}/api/add`, {
+    const res = await fetch(`${BASE_URL}/api/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
     });
 
-    if (res && res.error) {
-        alert(res.error);
+    const d = await res.json();
+
+    if (d.error) {
+        alert(d.error);
         return;
     }
 
     refreshAll();
 }
 
-// =========================
-// UPLOAD FILE
-// =========================
+/* =====================================
+   UPLOAD
+===================================== */
 async function uploadFile() {
 
-    const fileInput = document.getElementById("file");
-    const file = fileInput.files[0];
+    const file = document.getElementById("file").files[0];
 
     if (!file) {
-        alert("Select file first");
+        alert("Select file first.");
         return;
     }
 
     const form = new FormData();
     form.append("file", file);
 
-    const res = await safeFetch(`${BASE_URL}/api/upload`, {
+    const res = await fetch(`${BASE_URL}/api/upload`, {
         method: "POST",
         body: form
     });
 
-    if (!res) {
-        alert("Upload failed");
+    const d = await res.json();
+
+    if (d.error) {
+        alert(d.error);
         return;
     }
-
-    if (res.error) {
-        alert(res.error);
-        return;
-    }
-
-    alert("Upload success");
-    fileInput.value = "";
 
     refreshAll();
 }
 
-// =========================
-// RESET
-// =========================
+/* =====================================
+   RESET
+===================================== */
 async function resetData() {
 
     if (!confirm("Delete all records?")) return;
 
-    await safeFetch(`${BASE_URL}/api/reset`, {
+    await fetch(`${BASE_URL}/api/reset`, {
         method: "POST"
     });
 
     refreshAll();
 }
 
-// =========================
-// DELETE
-// =========================
+/* =====================================
+   DELETE SINGLE RECORD
+===================================== */
 async function deleteRow(index) {
 
     if (!confirm("Delete this record?")) return;
 
-    await safeFetch(`${BASE_URL}/api/delete/${index}`, {
-        method: "POST"
-    });
+    const res = await fetch(
+        `${BASE_URL}/api/delete/${index}`,
+        { method: "POST" }
+    );
+
+    const d = await res.json();
+
+    if (d.error) {
+        alert(d.error);
+        return;
+    }
 
     refreshAll();
 }
 
-// =========================
-// EDIT
-// =========================
+/* =====================================
+   EDIT RECORD
+===================================== */
 async function editRow(index, y, m, c, b) {
 
     const Year = prompt("Year:", y);
@@ -140,13 +144,13 @@ async function editRow(index, y, m, c, b) {
     const Month = prompt("Month:", m);
     if (Month === null) return;
 
-    const Consumption = prompt("Usage:", c);
+    const Consumption = prompt("Consumption:", c);
     if (Consumption === null) return;
 
     const Bill = prompt("Bill:", b);
     if (Bill === null) return;
 
-    await safeFetch(`${BASE_URL}/api/edit/${index}`, {
+    await fetch(`${BASE_URL}/api/edit/${index}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -157,21 +161,21 @@ async function editRow(index, y, m, c, b) {
     refreshAll();
 }
 
-// =========================
-// REPORTS
-// =========================
+/* =====================================
+   REPORTS
+===================================== */
 async function loadReports() {
 
     const data = await safeFetch(`${BASE_URL}/api/data`);
     const table = document.getElementById("reportTable");
 
-    if (!table) return;
-
     table.innerHTML = "";
 
     if (!data || data.length === 0) {
         table.innerHTML =
-            `<tr><td colspan="5" style="text-align:center;">No records</td></tr>`;
+        `<tr>
+            <td colspan="5">No records</td>
+        </tr>`;
         return;
     }
 
@@ -182,137 +186,133 @@ async function loadReports() {
             <td>${d.Year}</td>
             <td>${d.Month}</td>
             <td>${d.Consumption}</td>
-            <td>${Number(d.Bill).toFixed(2)}</td>
-            <td class="actions">
-                <button onclick="editRow(${i},'${d.Year}','${d.Month}','${d.Consumption}','${d.Bill}')">✏️</button>
+            <td>${d.Bill}</td>
+            <td>
+                <button onclick="editRow(${i},
+                '${d.Year}',
+                '${d.Month}',
+                '${d.Consumption}',
+                '${d.Bill}')">✏️</button>
+
                 <button onclick="deleteRow(${i})">🗑️</button>
             </td>
         </tr>`;
     });
 }
 
-// =========================
-// DASHBOARD
-// =========================
+/* =====================================
+   DASHBOARD
+===================================== */
 async function loadDashboard() {
 
     const d = await safeFetch(`${BASE_URL}/api/dashboard`);
     if (!d) return;
 
-    const total = document.getElementById("total");
-    const avg = document.getElementById("avg");
-    const bill = document.getElementById("bill_total");
-
-    if (total) total.innerText = Number(d.total).toFixed(1);
-    if (avg) avg.innerText = Number(d.avg).toFixed(1);
-    if (bill) bill.innerText = Number(d.bill).toFixed(1);
-
-    loadSavedMaintenance();
+    total.innerText = Number(d.total).toFixed(1);
+    avg.innerText = Number(d.avg).toFixed(1);
+    bill_total.innerText = Number(d.bill).toFixed(2);
 }
 
-// =========================
-// FORECAST
-// =========================
+/* =====================================
+   FORECAST
+===================================== */
 async function loadForecast() {
 
     const d = await safeFetch(`${BASE_URL}/api/forecast`);
-    const el = document.getElementById("forecast");
-
-    if (!el) return;
 
     if (!d || d.error) {
-        el.innerText = "Need at least 3 records";
+        forecast.innerText = "Need 3 records";
         return;
     }
 
-    el.innerText =
+    forecast.innerText =
         d.future_bill
-            .map(x => "₱" + Number(x).toFixed(2))
-            .join(" → ");
+        .map(x => "₱" + Number(x).toFixed(2))
+        .join(" → ");
 }
 
-// =========================
-// ANOMALY
-// =========================
+/* =====================================
+   ANOMALY DETECT + POPUP
+===================================== */
 async function loadAnomaly() {
 
     const d = await safeFetch(`${BASE_URL}/api/anomaly`);
-    const el = document.getElementById("anomaly");
 
-    if (!el) return;
+    if (!d) return;
 
-    if (!d) {
-        el.innerText = "No anomalies";
-        return;
-    }
+    const bad = d.filter(x =>
+        x.status === "ANOMALY"
+    );
 
-    const bad = d.filter(x => x.status === "ANOMALY");
-
-    el.innerHTML = bad.length
+    anomaly.innerHTML = bad.length
         ? bad.map(a =>
-            `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
-        ).join("<br>")
+          `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
+          ).join("<br>")
         : "No anomalies";
+
+    // popup immediately if anomaly exists
+    if (bad.length && !anomalyClosed) {
+
+        const popup =
+            document.getElementById("anomalyPopup");
+
+        const body =
+            document.getElementById("anomalyPopupBody");
+
+        body.innerHTML = bad.map(a =>
+            `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
+        ).join("<br>");
+
+        popup.style.display = "flex";
+    }
 }
 
-// =========================
-// CHART
-// =========================
+/* =====================================
+   CHART
+===================================== */
 async function loadChart() {
 
     const d = await safeFetch(`${BASE_URL}/api/forecast`);
-    const canvas = document.getElementById("chart");
+    const ctx = document.getElementById("chart");
 
-    if (!canvas) return;
+    if (!ctx) return;
 
     if (chartInstance) chartInstance.destroy();
 
-    if (!d || d.error) {
+    if (!d || d.error) return;
 
-        chartInstance = new Chart(canvas, {
-            type: "line",
-            data: {
-                labels: ["No Data"],
-                datasets: [{
-                    label: "Need 3 Records",
-                    data: [0],
-                    borderColor: "#170C79",
-                    backgroundColor: "rgba(23,12,121,.15)",
-                    tension: .35
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
-            }
-        });
+    const actual = [
+        ...d.history_actual,
+        null, null, null
+    ];
 
-        return;
-    }
+    const predicted = [
+        ...Array(d.history_actual.length - 1).fill(null),
+        d.history_actual[d.history_actual.length - 1],
+        ...d.future_bill
+    ];
 
-    chartInstance = new Chart(canvas, {
+    chartInstance = new Chart(ctx, {
         type: "line",
         data: {
             labels: d.labels,
             datasets: [
                 {
-                    label: "Actual",
-                    data: d.history_actual,
+                    label: "Actual Bill",
+                    data: actual,
                     borderColor: "#170C79",
-                    backgroundColor: "rgba(23,12,121,.12)",
-                    fill: true,
-                    tension: .35
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.35
                 },
                 {
-                    label: "Forecast",
-                    data: [
-                        ...Array(d.history_actual.length).fill(null),
-                        ...d.future_bill
-                    ],
+                    label: "Predicted Bill",
+                    data: predicted,
                     borderColor: "#56B6C6",
-                    borderDash: [6, 6],
-                    tension: .35,
-                    fill: false
+                    borderDash: [7,5],
+                    borderWidth: 3,
+                    fill: false,
+                    tension: 0.35
                 }
             ]
         },
@@ -323,138 +323,103 @@ async function loadChart() {
     });
 }
 
-// =========================
-// MAINTENANCE UI
-// =========================
-function toggleCalendar() {
-
-    const box = document.getElementById("calendarBox");
-    if (!box) return;
-
-    box.style.display =
-        box.style.display === "block"
-            ? "none"
-            : "block";
-}
-
-// =========================
-// SET MAINTENANCE DATE
-// =========================
+/* =====================================
+   MAINTENANCE DATE
+===================================== */
 async function setMaintenance() {
 
-    const input = document.getElementById("maintenanceDate");
-    if (!input || !input.value) {
-        alert("Select a date first");
+    const date =
+        document.getElementById("maintenanceDate").value;
+
+    if (!date) {
+        alert("Select date first");
         return;
     }
 
-    const res = await safeFetch(`${BASE_URL}/api/maintenance`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            date: input.value
-        })
-    });
+    const res = await fetch(
+        `${BASE_URL}/api/maintenance`,
+        {
+            method: "POST",
+            headers: {
+                "Content-Type":"application/json"
+            },
+            body: JSON.stringify({ date })
+        }
+    );
 
-    if (!res || res.error) {
-        alert(res?.error || "Failed");
-        return;
-    }
+    const d = await res.json();
+
+    nextMaintenance.innerText =
+        d.next_maintenance;
 
     localStorage.setItem(
         "maintenanceDate",
-        res.next_maintenance
+        d.next_maintenance
     );
 
-    loadSavedMaintenance();
-
-    const box = document.getElementById("calendarBox");
-    if (box) box.style.display = "none";
+    maintenanceClosed = false;
 
     checkMaintenanceReminder();
 }
 
-// =========================
-// LOAD SAVED DATE
-// =========================
-function loadSavedMaintenance() {
-
-    const txt = document.getElementById("nextMaintenance");
-    if (!txt) return;
-
-    const saved = localStorage.getItem("maintenanceDate");
-
-    txt.innerText = saved || "Click Set Date";
-}
-
-// =========================
-// POPUP CHECK
-// =========================
+/* =====================================
+   MAINTENANCE POPUP
+===================================== */
 function checkMaintenanceReminder() {
 
-    const saved = localStorage.getItem("maintenanceDate");
+    if (maintenanceClosed) return;
+
+    const saved =
+        localStorage.getItem("maintenanceDate");
+
     if (!saved) return;
 
-    const popup = document.getElementById("maintenancePopup");
-    const icon = document.getElementById("popupIcon");
-    const title = document.getElementById("popupTitle");
-    const text = document.getElementById("popupText");
-    const card = popup?.querySelector(".popup-card");
-    const okBtn = popup?.querySelector(".popup-btn");
-
-    if (!popup || !icon || !title || !text || !card) return;
-
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    today.setHours(0,0,0,0);
 
     const target = new Date(saved);
-    target.setHours(0, 0, 0, 0);
+    target.setHours(0,0,0,0);
 
-    const diff =
-        Math.ceil((target - today) / 86400000);
+    const days =
+        Math.ceil((target - today)/86400000);
 
-    if (diff > 10 || diff < 0) {
-        popup.style.display = "none";
-        return;
-    }
+    if (days > 10 || days < 0) return;
+
+    const popup =
+        document.getElementById("maintenancePopup");
 
     popup.style.display = "flex";
-    card.classList.remove("popup-lock");
 
-    if (diff === 0) {
+    popupIcon.innerText =
+        days === 0 ? "🚨" : "⚠️";
 
-        icon.innerText = "🚨";
-        title.innerText = "Maintenance Today";
-        text.innerText =
-            "Today is your maintenance schedule. This popup stays until you close it.";
+    popupTitle.innerText =
+        days === 0 ?
+        "Maintenance Today" :
+        "Upcoming Maintenance";
 
-        if (okBtn) okBtn.style.display = "none";
-
-        card.classList.add("popup-lock");
-
-    } else {
-
-        icon.innerText = "⚠️";
-        title.innerText = "Upcoming Maintenance";
-        text.innerText =
-            `Maintenance due in ${diff} day${diff > 1 ? "s" : ""}.`;
-
-        if (okBtn) okBtn.style.display = "inline-block";
-    }
+    popupText.innerText =
+        days === 0 ?
+        "Today is maintenance day." :
+        `Maintenance due in ${days} day(s).`;
 }
 
-// =========================
-// CLOSE POPUP
-// =========================
+/* =====================================
+   CLOSE POPUPS
+===================================== */
 function closeMaintenancePopup() {
-
-    const popup = document.getElementById("maintenancePopup");
-    if (popup) popup.style.display = "none";
+    maintenancePopup.style.display = "none";
+    maintenanceClosed = true;
 }
 
-// =========================
-// REFRESH
-// =========================
+function closeAnomalyPopup() {
+    anomalyPopup.style.display = "none";
+    anomalyClosed = true;
+}
+
+/* =====================================
+   REFRESH
+===================================== */
 async function refreshAll() {
 
     await Promise.all([
@@ -468,20 +433,7 @@ async function refreshAll() {
     checkMaintenanceReminder();
 }
 
-// =========================
-// INIT
-// =========================
-window.onload = async function () {
-    await refreshAll();
-};
-
-// expose to HTML
-window.showPage = showPage;
-window.addRecord = addRecord;
-window.uploadFile = uploadFile;
-window.resetData = resetData;
-window.deleteRow = deleteRow;
-window.editRow = editRow;
-window.toggleCalendar = toggleCalendar;
-window.setMaintenance = setMaintenance;
-window.closeMaintenancePopup = closeMaintenancePopup;
+/* =====================================
+   INIT
+===================================== */
+window.onload = refreshAll;
