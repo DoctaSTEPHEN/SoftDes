@@ -2,134 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Water System Dashboard</title>
 
+<link rel="stylesheet" href="/static/style.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-body {
-    margin: 0;
-    font-family: Inter, sans-serif;
-    background: #F8F8F8;
-}
-
-/* ===================== LAYOUT ===================== */
-.container {
-    display: grid;
-    grid-template-columns: 280px 1fr;
-    gap: 20px;
-    padding: 20px;
-    height: 100vh;
-}
-
-/* ===================== SIDEBAR ===================== */
-.sidebar {
-    background: #fff;
-    border-radius: 20px;
-    padding: 20px;
-}
-
-.menu-item {
-    padding: 12px;
-    border-radius: 10px;
-    cursor: pointer;
-    margin-bottom: 8px;
-}
-
-.menu-item.active {
-    background: #4CA9AF;
-    color: white;
-}
-
-/* ===================== MAIN ===================== */
-.main {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.topbar {
-    background: #fff;
-    padding: 18px;
-    border-radius: 15px;
-    font-size: 22px;
-    font-weight: bold;
-}
-
-/* ===================== PAGE ===================== */
-.page {
-    display: none;
-    flex-direction: column;
-    gap: 20px;
-}
-
-.page.active {
-    display: flex;
-}
-
-/* ===================== CARDS ===================== */
-.card {
-    background: #fff;
-    padding: 20px;
-    border-radius: 15px;
-}
-
-/* ===================== INPUTS ===================== */
-input, select {
-    width: 100%;
-    height: 38px;
-    padding: 8px;
-    border-radius: 8px;
-    border: 1px solid #ddd;
-    box-sizing: border-box;
-}
-
-/* ===================== BUTTONS ===================== */
-button {
-    padding: 10px;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-}
-
-.btn {
-    background: #238086;
-    color: white;
-}
-
-.btn-danger {
-    background: #e74c3c;
-    color: white;
-}
-
-/* ===================== GRID ===================== */
-.grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-}
-
-/* ===================== TABLE ===================== */
-table {
-    width: 100%;
-    background: #fff;
-    border-radius: 15px;
-    overflow: hidden;
-}
-
-th, td {
-    padding: 10px;
-    border-bottom: 1px solid #eee;
-}
-
-/* ===================== CHART ===================== */
-.chart-box {
-    background: #fff;
-    padding: 20px;
-    border-radius: 15px;
-    height: 350px;
-}
-</style>
+<link rel="stylesheet"
+href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 </head>
 
 <body>
@@ -137,38 +16,69 @@ th, td {
 <div class="container">
 
 <!-- SIDEBAR -->
-<div class="sidebar">
-    <div class="menu-item active" onclick="showPage('dashboard', this)">Dashboard</div>
-    <div class="menu-item" onclick="showPage('record', this)">Record</div>
-    <div class="menu-item" onclick="showPage('reports', this)">Reports</div>
-</div>
+<aside class="sidebar">
+
+    <div class="logo-box">
+    
+    <div class="logo-circle">
+        <img 
+        src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRdUY6-53NESEHhJDAyfXsJigOm9_okUAsgjw&s"
+        alt="Logo">
+    </div>
+
+    <h2>AquaForecast</h2>
+    <p>Water Monitoring</p>
+
+ </div>
+
+    <div class="menu-item active" onclick="showPage('dashboard',this)">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Dashboard</span>
+    </div>
+
+    <div class="menu-item" onclick="showPage('record',this)">
+        <i class="fa-solid fa-plus"></i>
+        <span>Add Data</span>
+    </div>
+
+    <div class="menu-item" onclick="showPage('reports',this)">
+        <i class="fa-solid fa-table"></i>
+        <span>Records</span>
+    </div>
+
+</aside>
 
 <!-- MAIN -->
-<div class="main">
+<main class="main">
 
 <div class="topbar" id="title">Dashboard</div>
 
-<!-- ================= DASHBOARD ================= -->
-<div class="page active" id="dashboard">
+<!-- DASHBOARD -->
+<section class="page active" id="dashboard">
 
-    <div class="chart-box">
+    <div class="card chart-box">
         <canvas id="chart"></canvas>
     </div>
 
-    <div class="card">
-        <b>Total:</b> <span id="total"></span>
+    <div class="stats-grid">
+        <div class="card stat-card">
+            <h4>Total Usage</h4>
+            <h2 id="total">0</h2>
+        </div>
+
+        <div class="card stat-card">
+            <h4>Average</h4>
+            <h2 id="avg">0</h2>
+        </div>
+
+        <div class="card stat-card">
+            <h4>Total Bill</h4>
+            <h2 id="bill_total">0</h2>
+        </div>
     </div>
 
     <div class="card">
-        <b>Average:</b> <span id="avg"></span>
-    </div>
-
-    <div class="card">
-        <b>Total Bill:</b> <span id="bill_total"></span>
-    </div>
-
-    <div class="card">
-        <h3>Forecast (Bill)</h3>
+        <h3>Forecast</h3>
         <div id="forecast"></div>
     </div>
 
@@ -176,31 +86,20 @@ th, td {
         <h3>Anomalies</h3>
         <div id="anomaly"></div>
     </div>
-    <div class="card" id="maintenanceAlert" style="display:none; background:#fff3cd; border-left:5px solid #ff9800;">
-     <b>Maintenance Alert:</b> Today is scheduled maintenance day!
-    </div>
-    <div class="card">
-        <h3>Maintenance Checker</h3>
 
-        <input type="date" id="maintenanceDate">
-        <button class="btn" onclick="checkMaintenance()">Check Next Maintenance</button>
+</section>
 
-        <div id="maintenanceResult"></div>
-    </div>
-
-</div>
-
-<!-- ================= RECORD ================= -->
-<div class="page" id="record">
+<!-- RECORD -->
+<section class="page" id="record">
 
     <div class="card">
-        <h3>Upload File</h3>
+        <h3><i class="fa-solid fa-upload"></i> Upload File</h3>
         <input type="file" id="file">
         <button class="btn" onclick="uploadFile()">Upload</button>
     </div>
 
     <div class="card">
-        <h3>Add Record</h3>
+        <h3><i class="fa-solid fa-plus"></i> Add Record</h3>
 
         <div class="grid">
             <input id="year" placeholder="Year">
@@ -226,16 +125,11 @@ th, td {
 
         <button class="btn" onclick="addRecord()">Add Record</button>
     </div>
+</section>
 
-    <div class="card">
-        <h3>Danger Zone</h3>
-        <button class="btn-danger" onclick="resetData()">Reset All Data</button>
-    </div>
 
-</div>
-
-<!-- ================= REPORTS ================= -->
-<div class="page" id="reports">
+<!-- REPORTS -->
+<section class="page" id="reports">
 
     <div class="card">
         <table>
@@ -245,31 +139,24 @@ th, td {
                     <th>Month</th>
                     <th>Usage</th>
                     <th>Bill</th>
+                    <th>Action</th>
                 </tr>
             </thead>
+
             <tbody id="reportTable"></tbody>
         </table>
     </div>
+  
+    <div class="card">
+        <h3><i class="fa-solid fa-trash"></i> Reset All Data</h3>
+        <button class="btn-danger" onclick="resetData()">Reset Records</button>
+    </div>
 
-</div>
+</section>
 
-</div>
+</main>
 </div>
 
 <script src="/static/scripts.js"></script>
-
-<script>
-function showPage(page, el) {
-    document.querySelectorAll(".menu-item").forEach(m => m.classList.remove("active"));
-    el.classList.add("active");
-
-    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
-    document.getElementById(page).classList.add("active");
-
-    document.getElementById("title").innerText =
-        page.charAt(0).toUpperCase() + page.slice(1);
-}
-</script>
-
 </body>
 </html>
