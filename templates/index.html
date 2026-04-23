@@ -75,6 +75,24 @@ href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
             <h4>Total Bill</h4>
             <h2 id="bill_total">0</h2>
         </div>
+
+        <div class="card">
+            <h3>Maintenance</h3>
+        
+            <div id="maintenanceInfo">
+                <p><b>Next Maintenance:</b> <span id="nextMaintenance">--</span></p>
+            </div>
+        
+            <button class="btn" onclick="toggleCalendar()">
+                Set Date
+            </button>
+        
+            <!-- hidden calendar container -->
+            <div id="calendarBox" style="display:none; margin-top:10px;">
+                <input type="date" id="maintenanceDate">
+                <button class="btn" onclick="setMaintenance()">Confirm</button>
+            </div>
+        </div>
     </div>
 
     <div class="card">
