@@ -9,15 +9,19 @@ function showPage(page, el) {
     document.querySelectorAll(".menu-item")
         .forEach(x => x.classList.remove("active"));
 
-    el.classList.add("active");
+    if (el) el.classList.add("active");
 
     document.querySelectorAll(".page")
         .forEach(x => x.classList.remove("active"));
 
-    document.getElementById(page).classList.add("active");
+    const target = document.getElementById(page);
+    if (target) target.classList.add("active");
 
-    document.getElementById("title").innerText =
-        page.charAt(0).toUpperCase() + page.slice(1);
+    const title = document.getElementById("title");
+    if (title) {
+        title.innerText =
+            page.charAt(0).toUpperCase() + page.slice(1);
+    }
 
     if (page === "reports") loadReports();
 }
@@ -25,17 +29,17 @@ function showPage(page, el) {
 // =========================
 // SAFE FETCH
 // =========================
-async function safeFetch(url) {
+async function safeFetch(url, options = {}) {
     try {
-        const r = await fetch(url);
-        return await r.json();
-    } catch {
+        const res = await fetch(url, options);
+        return await res.json();
+    } catch (err) {
         return null;
     }
 }
 
 // =========================
-// ADD RECORD (FIXED INPUT ACCESS)
+// ADD RECORD
 // =========================
 async function addRecord() {
 
@@ -46,43 +50,54 @@ async function addRecord() {
         Bill: document.getElementById("bill").value
     };
 
-    await fetch(`${BASE_URL}/api/add`, {
+    const res = await safeFetch(`${BASE_URL}/api/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
     });
 
+    if (res && res.error) {
+        alert(res.error);
+        return;
+    }
+
     refreshAll();
 }
 
 // =========================
-// UPLOAD FILE (FIXED - MISSING BEFORE)
+// UPLOAD FILE
 // =========================
 async function uploadFile() {
 
-    const file = document.getElementById("file").files[0];
+    const fileInput = document.getElementById("file");
+    const file = fileInput.files[0];
 
     if (!file) {
-        alert("No file selected");
+        alert("Select file first");
         return;
     }
 
     const form = new FormData();
     form.append("file", file);
 
-    const res = await fetch(`${BASE_URL}/api/upload`, {
+    const res = await safeFetch(`${BASE_URL}/api/upload`, {
         method: "POST",
         body: form
     });
 
-    const d = await res.json();
+    if (!res) {
+        alert("Upload failed");
+        return;
+    }
 
-    if (d.error) {
-        alert(d.error);
+    if (res.error) {
+        alert(res.error);
         return;
     }
 
     alert("Upload success");
+    fileInput.value = "";
+
     refreshAll();
 }
 
@@ -93,7 +108,7 @@ async function resetData() {
 
     if (!confirm("Delete all records?")) return;
 
-    await fetch(`${BASE_URL}/api/reset`, {
+    await safeFetch(`${BASE_URL}/api/reset`, {
         method: "POST"
     });
 
@@ -105,7 +120,9 @@ async function resetData() {
 // =========================
 async function deleteRow(index) {
 
-    await fetch(`${BASE_URL}/api/delete/${index}`, {
+    if (!confirm("Delete this record?")) return;
+
+    await safeFetch(`${BASE_URL}/api/delete/${index}`, {
         method: "POST"
     });
 
@@ -129,7 +146,7 @@ async function editRow(index, y, m, c, b) {
     const Bill = prompt("Bill:", b);
     if (Bill === null) return;
 
-    await fetch(`${BASE_URL}/api/edit/${index}`, {
+    await safeFetch(`${BASE_URL}/api/edit/${index}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -148,6 +165,8 @@ async function loadReports() {
     const data = await safeFetch(`${BASE_URL}/api/data`);
     const table = document.getElementById("reportTable");
 
+    if (!table) return;
+
     table.innerHTML = "";
 
     if (!data || data.length === 0) {
@@ -163,13 +182,10 @@ async function loadReports() {
             <td>${d.Year}</td>
             <td>${d.Month}</td>
             <td>${d.Consumption}</td>
-            <td>${d.Bill}</td>
-            <td>
-
+            <td>${Number(d.Bill).toFixed(2)}</td>
+            <td class="actions">
                 <button onclick="editRow(${i},'${d.Year}','${d.Month}','${d.Consumption}','${d.Bill}')">✏️</button>
-
                 <button onclick="deleteRow(${i})">🗑️</button>
-
             </td>
         </tr>`;
     });
@@ -182,11 +198,16 @@ async function loadDashboard() {
 
     const d = await safeFetch(`${BASE_URL}/api/dashboard`);
     if (!d) return;
-    
-    document.getElementById("total").innerText = d.total.toFixed(1);
-    document.getElementById("avg").innerText = d.avg.toFixed(1);
-    document.getElementById("bill_total").innerText = d.bill.toFixed(1);
-    document.getElementById("nextMaintenance").innerText = "Click Set Date";
+
+    const total = document.getElementById("total");
+    const avg = document.getElementById("avg");
+    const bill = document.getElementById("bill_total");
+
+    if (total) total.innerText = Number(d.total).toFixed(1);
+    if (avg) avg.innerText = Number(d.avg).toFixed(1);
+    if (bill) bill.innerText = Number(d.bill).toFixed(1);
+
+    loadSavedMaintenance();
 }
 
 // =========================
@@ -195,8 +216,9 @@ async function loadDashboard() {
 async function loadForecast() {
 
     const d = await safeFetch(`${BASE_URL}/api/forecast`);
-
     const el = document.getElementById("forecast");
+
+    if (!el) return;
 
     if (!d || d.error) {
         el.innerText = "Need at least 3 records";
@@ -204,7 +226,9 @@ async function loadForecast() {
     }
 
     el.innerText =
-        d.future_bill.map(x => "₱" + x.toFixed(2)).join(" → ");
+        d.future_bill
+            .map(x => "₱" + Number(x).toFixed(2))
+            .join(" → ");
 }
 
 // =========================
@@ -213,49 +237,60 @@ async function loadForecast() {
 async function loadAnomaly() {
 
     const d = await safeFetch(`${BASE_URL}/api/anomaly`);
-    if (!d) return;
+    const el = document.getElementById("anomaly");
+
+    if (!el) return;
+
+    if (!d) {
+        el.innerText = "No anomalies";
+        return;
+    }
 
     const bad = d.filter(x => x.status === "ANOMALY");
 
-    const el = document.getElementById("anomaly");
-
     el.innerHTML = bad.length
-        ? bad.map(a => `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`).join("<br>")
+        ? bad.map(a =>
+            `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
+        ).join("<br>")
         : "No anomalies";
 }
 
 // =========================
-// CHART (FIXED CLEAN VERSION)
+// CHART
 // =========================
 async function loadChart() {
 
     const d = await safeFetch(`${BASE_URL}/api/forecast`);
+    const canvas = document.getElementById("chart");
 
-    const ctx = document.getElementById("chart");
-    if (!ctx) return;
+    if (!canvas) return;
 
     if (chartInstance) chartInstance.destroy();
 
     if (!d || d.error) {
 
-        chartInstance = new Chart(ctx, {
+        chartInstance = new Chart(canvas, {
             type: "line",
             data: {
                 labels: ["No Data"],
                 datasets: [{
-                    label: "Waiting for 3 records",
+                    label: "Need 3 Records",
                     data: [0],
                     borderColor: "#170C79",
-                    backgroundColor: "rgba(23,12,121,0.15)",
-                    tension: 0.4
+                    backgroundColor: "rgba(23,12,121,.15)",
+                    tension: .35
                 }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
             }
         });
 
         return;
     }
 
-    chartInstance = new Chart(ctx, {
+    chartInstance = new Chart(canvas, {
         type: "line",
         data: {
             labels: d.labels,
@@ -264,16 +299,19 @@ async function loadChart() {
                     label: "Actual",
                     data: d.history_actual,
                     borderColor: "#170C79",
-                    backgroundColor: "rgba(23,12,121,0.12)",
-                    tension: 0.35,
-                    fill: true
+                    backgroundColor: "rgba(23,12,121,.12)",
+                    fill: true,
+                    tension: .35
                 },
                 {
                     label: "Forecast",
-                    data: [...Array(d.history_actual.length).fill(null), ...d.future_bill],
+                    data: [
+                        ...Array(d.history_actual.length).fill(null),
+                        ...d.future_bill
+                    ],
                     borderColor: "#56B6C6",
                     borderDash: [6, 6],
-                    tension: 0.35,
+                    tension: .35,
                     fill: false
                 }
             ]
@@ -285,77 +323,165 @@ async function loadChart() {
     });
 }
 
-
-// show/hide calendar
+// =========================
+// MAINTENANCE UI
+// =========================
 function toggleCalendar() {
+
     const box = document.getElementById("calendarBox");
-    box.style.display = box.style.display === "none" ? "block" : "none";
+    if (!box) return;
+
+    box.style.display =
+        box.style.display === "block"
+            ? "none"
+            : "block";
 }
 
-// send selected date to backend
+// =========================
+// SET MAINTENANCE DATE
+// =========================
 async function setMaintenance() {
 
-    const date = document.getElementById("maintenanceDate").value;
-
-    if (!date) {
+    const input = document.getElementById("maintenanceDate");
+    if (!input || !input.value) {
         alert("Select a date first");
         return;
     }
 
-    const res = await fetch(`${BASE_URL}/api/maintenance`, {
+    const res = await safeFetch(`${BASE_URL}/api/maintenance`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date })
+        body: JSON.stringify({
+            date: input.value
+        })
     });
 
-    const d = await res.json();
-
-    if (d.error) {
-        alert(d.error);
+    if (!res || res.error) {
+        alert(res?.error || "Failed");
         return;
     }
 
-    document.getElementById("nextMaintenance").innerText =
-        d.next_maintenance;
+    localStorage.setItem(
+        "maintenanceDate",
+        res.next_maintenance
+    );
 
-    document.getElementById("calendarBox").style.display = "none";
+    loadSavedMaintenance();
+
+    const box = document.getElementById("calendarBox");
+    if (box) box.style.display = "none";
+
+    checkMaintenanceReminder();
 }
 
-async function checkMaintenanceToday() {
+// =========================
+// LOAD SAVED DATE
+// =========================
+function loadSavedMaintenance() {
 
-    const d = await safeFetch(`${BASE_URL}/api/maintenance/today`);
-    if (!d) return;
+    const txt = document.getElementById("nextMaintenance");
+    if (!txt) return;
 
-    const icon = document.getElementById("maintenanceIcon");
-    const text = document.getElementById("nextMaintenance");
+    const saved = localStorage.getItem("maintenanceDate");
 
-    if (d.date) {
-        text.innerText = d.date;
+    txt.innerText = saved || "Click Set Date";
+}
+
+// =========================
+// POPUP CHECK
+// =========================
+function checkMaintenanceReminder() {
+
+    const saved = localStorage.getItem("maintenanceDate");
+    if (!saved) return;
+
+    const popup = document.getElementById("maintenancePopup");
+    const icon = document.getElementById("popupIcon");
+    const title = document.getElementById("popupTitle");
+    const text = document.getElementById("popupText");
+    const card = popup?.querySelector(".popup-card");
+    const okBtn = popup?.querySelector(".popup-btn");
+
+    if (!popup || !icon || !title || !text || !card) return;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const target = new Date(saved);
+    target.setHours(0, 0, 0, 0);
+
+    const diff =
+        Math.ceil((target - today) / 86400000);
+
+    if (diff > 10 || diff < 0) {
+        popup.style.display = "none";
+        return;
     }
 
-    if (d.is_today) {
-        icon.style.display = "inline";
+    popup.style.display = "flex";
+    card.classList.remove("popup-lock");
+
+    if (diff === 0) {
+
+        icon.innerText = "🚨";
+        title.innerText = "Maintenance Today";
+        text.innerText =
+            "Today is your maintenance schedule. This popup stays until you close it.";
+
+        if (okBtn) okBtn.style.display = "none";
+
+        card.classList.add("popup-lock");
+
     } else {
-        icon.style.display = "none";
+
+        icon.innerText = "⚠️";
+        title.innerText = "Upcoming Maintenance";
+        text.innerText =
+            `Maintenance due in ${diff} day${diff > 1 ? "s" : ""}.`;
+
+        if (okBtn) okBtn.style.display = "inline-block";
     }
+}
+
+// =========================
+// CLOSE POPUP
+// =========================
+function closeMaintenancePopup() {
+
+    const popup = document.getElementById("maintenancePopup");
+    if (popup) popup.style.display = "none";
 }
 
 // =========================
 // REFRESH
 // =========================
 async function refreshAll() {
+
     await Promise.all([
         loadDashboard(),
         loadForecast(),
         loadAnomaly(),
         loadChart(),
-        loadReports(),
-        checkMaintenanceToday()
+        loadReports()
     ]);
+
+    checkMaintenanceReminder();
 }
 
 // =========================
 // INIT
 // =========================
-window.onload = refreshAll;
+window.onload = async function () {
+    await refreshAll();
+};
+
+// expose to HTML
+window.showPage = showPage;
+window.addRecord = addRecord;
 window.uploadFile = uploadFile;
+window.resetData = resetData;
+window.deleteRow = deleteRow;
+window.editRow = editRow;
+window.toggleCalendar = toggleCalendar;
+window.setMaintenance = setMaintenance;
+window.closeMaintenancePopup = closeMaintenancePopup;
