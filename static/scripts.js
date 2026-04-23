@@ -321,6 +321,25 @@ async function setMaintenance() {
     document.getElementById("calendarBox").style.display = "none";
 }
 
+async function checkMaintenanceToday() {
+
+    const d = await safeFetch(`${BASE_URL}/api/maintenance/today`);
+    if (!d) return;
+
+    const icon = document.getElementById("maintenanceIcon");
+    const text = document.getElementById("nextMaintenance");
+
+    if (d.date) {
+        text.innerText = d.date;
+    }
+
+    if (d.is_today) {
+        icon.style.display = "inline";
+    } else {
+        icon.style.display = "none";
+    }
+}
+
 // =========================
 // REFRESH
 // =========================
