@@ -241,3 +241,16 @@ tr:nth-child(even){
     border-radius: 10px;
     border: 1px solid #ddd;
 }
+
+
+#maintenanceIcon {
+    font-weight: bold;
+    margin-left: 10px;
+    animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 1; }
+    100% { opacity: 0.4; }
+}
