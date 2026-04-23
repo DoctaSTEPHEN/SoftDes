@@ -180,38 +180,146 @@ async function loadAnomaly() {
 async function loadChart() {
 
     const d = await safeFetch(`${BASE_URL}/api/forecast`);
-    if (!d || d.error) return;
 
     const ctx = document.getElementById("chart");
 
-    if (chartInstance) chartInstance.destroy();
+    if (!ctx) return;
+
+    if (chartInstance) {
+        chartInstance.destroy();
+    }
+
+    // If no enough records
+    if (!d || d.error) {
+
+        chartInstance = new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: ["No Data"],
+                datasets: [{
+                    label: "Waiting for 3 records",
+                    data: [0],
+                    borderColor: "#170C79",
+                    backgroundColor: "rgba(23,12,121,0.15)",
+                    pointRadius: 4,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: "#170C79"
+                        }
+                    }
+                }
+            }
+        });
+
+        return;
+    }
+
+    const historyCount = d.history_actual.length;
+
+    const actualData = [
+        ...d.history_actual,
+        null,
+        null,
+        null
+    ];
+
+    const predictedData = [
+        ...Array(historyCount - 1).fill(null),
+        d.history_actual[historyCount - 1],
+        ...d.future_bill
+    ];
 
     chartInstance = new Chart(ctx, {
         type: "line",
+
         data: {
             labels: d.labels,
+
             datasets: [
+
                 {
-                    label: "Bill",
-                    data: [...d.history_actual, null, null, null]
+                    label: "Actual Bill",
+                    data: actualData,
+                    borderColor: "#170C79",
+                    backgroundColor: "rgba(23,12,121,0.12)",
+                    pointBackgroundColor: "#170C79",
+                    pointBorderColor: "#170C79",
+                    pointRadius: 5,
+                    borderWidth: 3,
+                    tension: 0.35,
+                    fill: true
                 },
+
                 {
-                    label: "Forecast",
-                    data: [
-                        ...Array(d.history_actual.length).fill(null),
-                        ...d.future_bill
-                    ],
-                    borderDash: [5, 5]
+                    label: "Predicted Bill",
+                    data: predictedData,
+                    borderColor: "#56B6C6",
+                    backgroundColor: "rgba(86,182,198,0.10)",
+                    pointBackgroundColor: "#56B6C6",
+                    pointBorderColor: "#56B6C6",
+                    pointRadius: 5,
+                    borderWidth: 3,
+                    borderDash: [8,6],
+                    tension: 0.35,
+                    fill: false
                 }
+
             ]
         },
+
         options: {
             responsive: true,
-            maintainAspectRatio: false
+            maintainAspectRatio: false,
+
+            interaction: {
+                mode: "index",
+                intersect: false
+            },
+
+            plugins: {
+                legend: {
+                    labels: {
+                        color: "#170C79",
+                        font: {
+                            size: 13,
+                            weight: "bold"
+                        }
+                    }
+                }
+            },
+
+            scales: {
+
+                x: {
+                    ticks: {
+                        color: "#170C79"
+                    },
+                    grid: {
+                        color: "rgba(23,12,121,0.06)"
+                    }
+                },
+
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        color: "#170C79"
+                    },
+                    grid: {
+                        color: "rgba(23,12,121,0.06)"
+                    }
+                }
+
+            }
         }
     });
 }
-
 // REFRESH
 async function refreshAll() {
 
