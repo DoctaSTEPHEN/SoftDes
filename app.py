@@ -108,48 +108,87 @@ def upload():
 
     try:
         if "file" not in request.files:
-            return jsonify({"error": "Missing file upload"}), 400
+            return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files["file"]
 
         if file.filename == "":
-            return jsonify({"error": "Missing file upload"}), 400
+            return jsonify({"error": "Empty filename"}), 400
 
+        filename = file.filename.lower()
         content = file.read()
 
-        # FIX: auto-detect CSV / TSV
+        df = None
+
+        # =========================
+        # FIX 1: Try CSV / TSV robustly
+        # =========================
         try:
-            df = pd.read_csv(io.BytesIO(content), sep=None, engine="python")
+            df = pd.read_csv(io.BytesIO(content), delimiter=None, engine="python")
         except:
+            pass
+
+        # =========================
+        # FIX 2: Force TAB fallback (VERY IMPORTANT FOR YOUR FILE)
+        # =========================
+        if df is None:
             try:
-                df = pd.read_json(io.BytesIO(content))
+                df = pd.read_csv(io.BytesIO(content), sep="\t")
             except:
-                return jsonify({"error": "Unsupported file format"}), 400
+                pass
 
-        # normalize column names
-        df.columns = [c.strip().lower() for c in df.columns]
+        # =========================
+        # FIX 3: Excel-style fallback
+        # =========================
+        if df is None:
+            try:
+                df = pd.read_excel(io.BytesIO(content))
+            except:
+                pass
 
-        def find(col_list):
+        # =========================
+        # FAIL SAFE
+        # =========================
+        if df is None:
+            return jsonify({"error": "Cannot parse file format"}), 400
+
+        # normalize headers
+        df.columns = [str(c).strip().lower() for c in df.columns]
+
+        # flexible column matching
+        def find(col):
             for c in df.columns:
-                for n in col_list:
-                    if n in c:
-                        return c
+                if col in c:
+                    return c
             return None
 
-        y = find(["year"])
-        m = find(["month"])
-        c = find(["consumption"])
-        b = find(["bill"])
+        y = find("year")
+        m = find("month")
+        c = find("consumption")
+        b = find("bill")
 
         if not all([y, m, c, b]):
-            return jsonify({"error": "Missing required columns"}), 400
+            return jsonify({
+                "error": "Missing required columns (Year, Month, Consumption, Bill)"
+            }), 400
 
         df = df[[y, m, c, b]]
         df.columns = ["Year", "Month", "Consumption", "Bill"]
 
+        # force numeric safety
+        df["Year"] = pd.to_numeric(df["Year"], errors="coerce")
+        df["Month"] = pd.to_numeric(df["Month"], errors="coerce")
+        df["Consumption"] = pd.to_numeric(df["Consumption"], errors="coerce")
+        df["Bill"] = pd.to_numeric(df["Bill"], errors="coerce")
+
+        df = df.dropna()
+
         data_store = pd.concat([data_store, df], ignore_index=True)
 
-        return jsonify({"rows_added": len(df)})
+        return jsonify({
+            "message": "Upload success",
+            "rows_added": len(df)
+        })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
