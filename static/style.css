@@ -1,267 +1,149 @@
-const BASE_URL = window.location.origin;
-
-let chartInstance = null;
-let maintenanceClosed = false;
-let anomalyClosed = false;
-
-/* PAGE */
-function showPage(page, el) {
-
-    document.querySelectorAll(".menu-item")
-        .forEach(x => x.classList.remove("active"));
-
-    if (el) el.classList.add("active");
-
-    document.querySelectorAll(".page")
-        .forEach(x => x.classList.remove("active"));
-
-    document.getElementById(page).classList.add("active");
-
-    document.getElementById("title").innerText =
-        page.charAt(0).toUpperCase() + page.slice(1);
-
-    if (page === "reports") loadReports();
+:root{
+    --primary:#00396F;
+    --cream:#FFF9F9;
+    --blue:#089DD9;
+    --cyan:#89D86E;
+    --accent:#082118;
+    --white:#FFF9F9;
+    --text:#082118;
+    --muted:#555;
+    --danger:#e74c3c;
+    --shadow:0 10px 25px rgba(0,0,0,.08);
 }
 
-/* FETCH */
-async function safeFetch(url) {
-    try {
-        const r = await fetch(url);
-        return await r.json();
-    } catch {
-        return null;
-    }
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
 }
 
-/* ADD */
-async function addRecord() {
-
-    const data = {
-        Year: year.value,
-        Month: month.value,
-        Consumption: consumption.value,
-        Bill: bill.value
-    };
-
-    await fetch(`${BASE_URL}/api/add`, {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(data)
-    });
-
-    refreshAll();
+body{
+    font-family:Inter,sans-serif;
+    background:linear-gradient(135deg,var(--cream),#f2eeee);
+    color:var(--text);
 }
 
-/* UPLOAD */
-async function uploadFile() {
-
-    const file = document.getElementById("file").files[0];
-    if (!file) return alert("Select file");
-
-    const form = new FormData();
-    form.append("file", file);
-
-    await fetch(`${BASE_URL}/api/upload`, {
-        method: "POST",
-        body: form
-    });
-
-    refreshAll();
+.container{
+    display:grid;
+    grid-template-columns:260px 1fr;
+    gap:20px;
+    padding:20px;
 }
 
-/* RESET */
-async function resetData() {
-    if (!confirm("Reset all?")) return;
-
-    await fetch(`${BASE_URL}/api/reset`, {method:"POST"});
-    refreshAll();
+/* SIDEBAR */
+.sidebar{
+    background:linear-gradient(180deg,var(--primary),var(--accent));
+    color:#fff;
+    border-radius:28px;
+    padding:24px;
+    height:100vh;
 }
 
-/* DELETE (FIXED REQUIRED BACKEND SUPPORT) */
-async function deleteRow(index) {
-    await fetch(`${BASE_URL}/api/delete/${index}`, {method:"POST"});
-    refreshAll();
+.logo-circle{
+    width:120px;
+    height:120px;
+    margin:auto;
+    border-radius:50%;
+    overflow:hidden;
 }
 
-/* REPORTS */
-async function loadReports() {
-
-    const data = await safeFetch(`${BASE_URL}/api/data`);
-    const table = document.getElementById("reportTable");
-
-    table.innerHTML = "";
-
-    if (!data?.length) {
-        table.innerHTML = `<tr><td colspan="5">No records</td></tr>`;
-        return;
-    }
-
-    data.forEach((d, i) => {
-        table.innerHTML += `
-        <tr>
-            <td>${d.Year}</td>
-            <td>${d.Month}</td>
-            <td>${d.Consumption}</td>
-            <td>${d.Bill}</td>
-            <td>
-                <button onclick="deleteRow(${i})">🗑️</button>
-            </td>
-        </tr>`;
-    });
+.logo-circle img{
+    width:100%;
+    height:100%;
+    object-fit:cover;
 }
 
-/* DASHBOARD */
-async function loadDashboard() {
-
-    const d = await safeFetch(`${BASE_URL}/api/dashboard`);
-    if (!d) return;
-
-    total.innerText = d.total.toFixed(1);
-    avg.innerText = d.avg.toFixed(1);
-    bill_total.innerText = (d.bill / d.records || 0).toFixed(1);
+/* MENU */
+.menu-item{
+    padding:12px;
+    margin:8px 0;
+    border-radius:12px;
+    cursor:pointer;
 }
 
-/* FORECAST */
-async function loadForecast() {
-
-    const d = await safeFetch(`${BASE_URL}/api/forecast`);
-
-    if (!d || d.error) {
-        forecast.innerText = "Need 3 records";
-        return;
-    }
-
-    forecast.innerText =
-        d.future_bill.map(x => "₱" + x.toFixed(2)).join(" → ");
+.menu-item.active{
+    background:var(--cyan);
+    color:var(--accent);
 }
 
-/* ANOMALY */
-async function loadAnomaly() {
+/* MAIN */
+.main{ display:flex; flex-direction:column; gap:20px; }
 
-    const d = await safeFetch(`${BASE_URL}/api/anomaly`);
-    if (!d) return;
+.page{ display:none; }
+.page.active{ display:block; }
 
-    const bad = d.filter(x => x.status === "ANOMALY");
-
-    const box = document.getElementById("anomaly");
-    if (box) {
-        box.innerHTML = bad.length
-            ? bad.map(a => `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`).join("<br>")
-            : "No anomalies";
-    }
-
-    if (bad.length && !anomalyClosed) {
-        document.getElementById("anomalyPopupBody").innerHTML =
-            bad.map(a => `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`).join("<br>");
-
-        document.getElementById("anomalyPopup").style.display = "flex";
-    }
+.card{
+    background:#fff;
+    padding:20px;
+    border-radius:20px;
+    box-shadow:var(--shadow);
 }
 
-/* CHART (UNCHANGED LOOK) */
-async function loadChart() {
-
-    const d = await safeFetch(`${BASE_URL}/api/forecast`);
-    const ctx = document.getElementById("chart");
-
-    if (chartInstance) chartInstance.destroy();
-
-    if (!d || d.error) return;
-
-    chartInstance = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels: d.labels,
-            datasets: [{
-                label: "Actual",
-                data: d.history_actual,
-                borderColor: "#170C79",
-                tension: 0.35,
-                fill: true
-            },{
-                label: "Predicted",
-                data: d.future_bill,
-                borderColor: "#56B6C6",
-                borderDash: [8,6],
-                tension: 0.35
-            }]
-        }
-    });
+.stats-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:15px;
 }
 
-/* MAINTENANCE */
-function openMaintenanceCalendar() {
-    const box = document.getElementById("calendarBox");
-    box.style.display = box.style.display === "block" ? "none" : "block";
+.stat-card h2{
+    color:var(--primary);
 }
 
-async function setMaintenance() {
-
-    const input = document.getElementById("maintenanceDate");
-    if (!input.value) return alert("Select date");
-
-    const res = await fetch(`${BASE_URL}/api/maintenance`, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({date: input.value})
-    });
-
-    const d = await res.json();
-
-    nextMaintenance.innerText = d.next_maintenance;
-    localStorage.setItem("maintenanceDate", d.next_maintenance);
-
-    maintenanceClosed = false;
-    checkMaintenance();
+/* TABLE */
+table{
+    width:100%;
+    border-collapse:collapse;
 }
 
-/* MAINTENANCE POPUP */
-function checkMaintenance() {
-
-    if (maintenanceClosed) return;
-
-    const saved = localStorage.getItem("maintenanceDate");
-    if (!saved) return;
-
-    const today = new Date();
-    const target = new Date(saved);
-
-    const diff = Math.ceil((target - today)/86400000);
-
-    if (diff < 0 || diff > 10) return;
-
-    popupIcon.innerText = diff === 0 ? "🚨" : "⚠️";
-    popupTitle.innerText = diff === 0 ? "Today" : "Upcoming";
-    popupText.innerText = diff === 0
-        ? "Maintenance today"
-        : `In ${diff} days`;
-
-    maintenancePopup.style.display = "flex";
+th{
+    background:var(--primary);
+    color:#fff;
+    padding:10px;
 }
 
-/* CLOSE */
-function closeMaintenancePopup(){
-    maintenancePopup.style.display = "none";
-    maintenanceClosed = true;
+td{
+    padding:10px;
 }
 
-function closeAnomalyPopup(){
-    anomalyPopup.style.display = "none";
-    anomalyClosed = true;
+/* BUTTON */
+.btn{
+    background:var(--blue);
+    color:#fff;
+    padding:10px;
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
 }
 
-/* REFRESH */
-async function refreshAll() {
-
-    await Promise.all([
-        loadDashboard(),
-        loadForecast(),
-        loadAnomaly(),
-        loadChart(),
-        loadReports()
-    ]);
-
-    checkMaintenance();
+.btn-danger{
+    background:var(--danger);
+    color:#fff;
 }
 
-window.onload = refreshAll;
+/* POPUP */
+.popup-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.5);
+    display:none;
+    justify-content:center;
+    align-items:center;
+}
+
+.popup-card{
+    background:#fff;
+    padding:20px;
+    border-radius:20px;
+    width:300px;
+    text-align:center;
+}
+
+.popup-close{
+    position:absolute;
+    top:10px;
+    right:10px;
+    border:none;
+    background:none;
+    font-size:20px;
+    cursor:pointer;
+}
