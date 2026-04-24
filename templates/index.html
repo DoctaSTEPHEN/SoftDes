@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>AquaForecast</title>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://kit.fontawesome.com/a2e0e6ad1a.js" crossorigin="anonymous"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AquaForecast Dashboard</title>
 
 <link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
@@ -19,127 +19,210 @@
 
     <div class="logo-box">
         <div class="logo-circle">
-            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRdUY6-53NESEHhJDAyfXsJigOm9_okUAsgjw&s">
+            <img src="/static/images/Logo.png" alt="Logo">
         </div>
 
         <h2>AquaForecast</h2>
         <p>Water Monitoring</p>
     </div>
 
-    <div class="menu-item active" onclick="showPage('dashboard', this)">Dashboard</div>
-    <div class="menu-item" onclick="showPage('record', this)">Records</div>
-    <div class="menu-item" onclick="showPage('reports', this)">Reports</div>
+    <div class="menu-item active" onclick="showPage('dashboard', this)">
+        <i class="fa-solid fa-chart-line"></i> <span>Dashboard</span>
+    </div>
+
+    <div class="menu-item" onclick="showPage('record', this)">
+        <i class="fa-solid fa-plus"></i> <span>Add Data</span>
+    </div>
+
+    <div class="menu-item" onclick="showPage('reports', this)">
+        <i class="fa-solid fa-table"></i> <span>Records</span>
+    </div>
 
 </aside>
 
 <!-- MAIN -->
-<div class="main">
+<main class="main">
 
 <div class="topbar" id="title">Dashboard</div>
 
 <!-- DASHBOARD -->
-<div class="page active" id="dashboard">
+<section class="page active" id="dashboard">
 
     <div class="card chart-box">
         <canvas id="chart"></canvas>
     </div>
 
-    <div class="grid">
-        <div class="card">Total: <span id="total"></span></div>
-        <div class="card">Avg Consumption: <span id="avg"></span></div>
-        <div class="card">Avg Bill: <span id="bill_total"></span></div>
+    <div class="stats-grid">
+
+        <div class="card stat-card">
+            <h4>Total Usage</h4>
+            <h2 id="total">0</h2>
+        </div>
+
+        <div class="card stat-card">
+            <h4>Average Consumption</h4>
+            <h2 id="avg">0</h2>
+        </div>
+
+        <div class="card stat-card">
+            <h4>Average Bill</h4>
+            <h2 id="bill_total">0</h2>
+        </div>
+
+        <!-- MAINTENANCE -->
+        <div class="card stat-card">
+
+            <h4>Maintenance</h4>
+
+            <h2 id="nextMaintenance">--</h2>
+
+            <button class="btn" onclick="openMaintenanceCalendar()">
+                Set Date
+            </button>
+
+            <div id="calendarBox" style="display:none;">
+                <input type="date" id="maintenanceDate">
+
+                <button class="btn" onclick="setMaintenance()">
+                    Confirm
+                </button>
+            </div>
+
+        </div>
+
     </div>
 
     <div class="card">
         <h3>Forecast</h3>
-        <div id="forecast"></div>
+        <div id="forecast">--</div>
     </div>
 
     <div class="card">
         <h3>Anomalies</h3>
-        <div id="anomaly"></div>
+        <div id="anomaly">No anomalies</div>
     </div>
 
-    <div class="card maintenance-card">
-        <h3>Maintenance</h3>
+</section>
 
-        <input type="date" id="maintenanceDate">
-
-        <button class="btn" onclick="openMaintenanceCalendar()">Pick Date</button>
-        <button class="btn" onclick="setMaintenance()">Set</button>
-
-        <p id="nextMaintenance"></p>
-    </div>
-
-</div>
-
-<!-- RECORDS -->
-<div class="page" id="record">
+<!-- ADD DATA -->
+<section class="page" id="record">
 
     <div class="card">
+
+        <h3>Upload File</h3>
+
+        <input type="file" id="file">
+
+        <button class="btn" onclick="uploadFile()">Upload</button>
+
+    </div>
+
+    <div class="card">
+
         <h3>Add Record</h3>
 
         <div class="grid">
+
             <input id="year" placeholder="Year">
-            <input id="month" placeholder="Month">
+
+            <select id="month">
+                <option value="1">Jan</option>
+                <option value="2">Feb</option>
+                <option value="3">Mar</option>
+                <option value="4">Apr</option>
+                <option value="5">May</option>
+                <option value="6">Jun</option>
+                <option value="7">Jul</option>
+                <option value="8">Aug</option>
+                <option value="9">Sep</option>
+                <option value="10">Oct</option>
+                <option value="11">Nov</option>
+                <option value="12">Dec</option>
+            </select>
+
             <input id="consumption" placeholder="Consumption">
             <input id="bill" placeholder="Bill">
+
         </div>
 
-        <button class="btn" onclick="addRecord()">Add</button>
+        <button class="btn" onclick="addRecord()">Add Record</button>
+
     </div>
 
+</section>
+
+<!-- REPORTS -->
+<section class="page" id="reports">
+
     <div class="card">
-        <h3>Upload CSV</h3>
-        <input type="file" id="file">
-        <button class="btn" onclick="uploadFile()">Upload</button>
+
+        <h3>Records</h3>
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Year</th>
+                    <th>Month</th>
+                    <th>Usage</th>
+                    <th>Bill</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+
+            <tbody id="reportTable"></tbody>
+
+        </table>
+
     </div>
 
     <div class="card">
         <button class="btn-danger" onclick="resetData()">Reset All</button>
     </div>
 
+</section>
+
+</main>
 </div>
 
-<!-- REPORTS -->
-<div class="page" id="reports">
+<!-- MAINTENANCE POPUP -->
+<div id="maintenancePopup" class="popup-overlay">
+    <div class="popup-card">
 
-    <div class="card">
-        <table>
-            <thead>
-                <tr>
-                    <th>Year</th>
-                    <th>Month</th>
-                    <th>Consumption</th>
-                    <th>Bill</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="reportTable"></tbody>
-        </table>
-    </div>
+        <button class="popup-close" onclick="closeMaintenancePopup()">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
 
-</div>
+        <div id="popupIcon" class="popup-icon">🔧</div>
 
-</div>
-</div>
+        <h2 id="popupTitle">Maintenance</h2>
 
-<!-- POPUPS -->
-
-<div id="anomalyPopup" class="popup">
-    <div class="popup-box anomaly">
-        <h3>⚠ Anomaly</h3>
-        <div id="anomalyPopupBody"></div>
-        <button onclick="closeAnomalyPopup()">Close</button>
-    </div>
-</div>
-
-<div id="maintenancePopup" class="popup">
-    <div class="popup-box maintenance">
-        <h3 id="popupTitle">Maintenance</h3>
         <p id="popupText"></p>
-        <button onclick="closeMaintenancePopup()">Close</button>
+
+        <button class="btn" onclick="closeMaintenancePopup()">OK</button>
+
     </div>
+</div>
+
+<!-- ANOMALY POPUP -->
+<div id="anomalyPopup" class="popup-overlay">
+
+    <div class="popup-card">
+
+        <button class="popup-close" onclick="closeAnomalyPopup()">
+            <i class="fa-solid fa-xmark"></i>
+        </button>
+
+        <div class="popup-icon">⚠️</div>
+
+        <h2>Anomaly Detected</h2>
+
+        <p id="anomalyPopupBody"></p>
+
+        <button class="btn" onclick="closeAnomalyPopup()">OK</button>
+
+    </div>
+
 </div>
 
 <script src="/static/scripts.js"></script>
