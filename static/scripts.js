@@ -2,33 +2,41 @@ const BASE_URL = window.location.origin;
 let chartInstance = null;
 
 /* =====================================
-   POPUP FLAGS (session only)
+   FLAGS
 ===================================== */
 let maintenanceClosed = false;
 let anomalyClosed = false;
 
 /* =====================================
-   PAGE
+   SAFE DOM GET
 ===================================== */
-function showPage(page, el) {
+function el(id) {
+    return document.getElementById(id);
+}
+
+/* =====================================
+   PAGE NAV
+===================================== */
+function showPage(page, elBtn) {
+
     document.querySelectorAll(".menu-item")
         .forEach(x => x.classList.remove("active"));
 
-    if (el) el.classList.add("active");
+    if (elBtn) elBtn.classList.add("active");
 
     document.querySelectorAll(".page")
         .forEach(x => x.classList.remove("active"));
 
-    document.getElementById(page).classList.add("active");
+    el(page).classList.add("active");
 
-    document.getElementById("title").innerText =
+    el("title").innerText =
         page.charAt(0).toUpperCase() + page.slice(1);
 
     if (page === "reports") loadReports();
 }
 
 /* =====================================
-   FETCH
+   FETCH SAFE
 ===================================== */
 async function safeFetch(url) {
     try {
@@ -40,29 +48,22 @@ async function safeFetch(url) {
 }
 
 /* =====================================
-   ADD RECORD
+   ADD
 ===================================== */
 async function addRecord() {
 
     const data = {
-        Year: year.value,
-        Month: month.value,
-        Consumption: consumption.value,
-        Bill: bill.value
+        Year: el("year").value,
+        Month: el("month").value,
+        Consumption: el("consumption").value,
+        Bill: el("bill").value
     };
 
-    const res = await fetch(`${BASE_URL}/api/add`, {
+    await fetch(`${BASE_URL}/api/add`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {"Content-Type":"application/json"},
         body: JSON.stringify(data)
     });
-
-    const d = await res.json();
-
-    if (d.error) {
-        alert(d.error);
-        return;
-    }
 
     refreshAll();
 }
@@ -72,27 +73,16 @@ async function addRecord() {
 ===================================== */
 async function uploadFile() {
 
-    const file = document.getElementById("file").files[0];
-
-    if (!file) {
-        alert("Select file first.");
-        return;
-    }
+    const file = el("file").files[0];
+    if (!file) return alert("Select file first.");
 
     const form = new FormData();
     form.append("file", file);
 
-    const res = await fetch(`${BASE_URL}/api/upload`, {
+    await fetch(`${BASE_URL}/api/upload`, {
         method: "POST",
         body: form
     });
-
-    const d = await res.json();
-
-    if (d.error) {
-        alert(d.error);
-        return;
-    }
 
     refreshAll();
 }
@@ -108,35 +98,30 @@ async function resetData() {
         method: "POST"
     });
 
+    anomalyClosed = false;
+    maintenanceClosed = false;
+
     refreshAll();
 }
 
 /* =====================================
-   DELETE SINGLE RECORD
+   DELETE
 ===================================== */
-async function deleteRow(index) {
+async function deleteRow(i) {
 
     if (!confirm("Delete this record?")) return;
 
-    const res = await fetch(
-        `${BASE_URL}/api/delete/${index}`,
-        { method: "POST" }
-    );
-
-    const d = await res.json();
-
-    if (d.error) {
-        alert(d.error);
-        return;
-    }
+    await fetch(`${BASE_URL}/api/delete/${i}`, {
+        method: "POST"
+    });
 
     refreshAll();
 }
 
 /* =====================================
-   EDIT RECORD
+   EDIT
 ===================================== */
-async function editRow(index, y, m, c, b) {
+async function editRow(i, y, m, c, b) {
 
     const Year = prompt("Year:", y);
     if (Year === null) return;
@@ -150,12 +135,10 @@ async function editRow(index, y, m, c, b) {
     const Bill = prompt("Bill:", b);
     if (Bill === null) return;
 
-    await fetch(`${BASE_URL}/api/edit/${index}`, {
+    await fetch(`${BASE_URL}/api/edit/${i}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            Year, Month, Consumption, Bill
-        })
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ Year, Month, Consumption, Bill })
     });
 
     refreshAll();
@@ -167,15 +150,12 @@ async function editRow(index, y, m, c, b) {
 async function loadReports() {
 
     const data = await safeFetch(`${BASE_URL}/api/data`);
-    const table = document.getElementById("reportTable");
+    const table = el("reportTable");
 
     table.innerHTML = "";
 
-    if (!data || data.length === 0) {
-        table.innerHTML =
-        `<tr>
-            <td colspan="5">No records</td>
-        </tr>`;
+    if (!data || !data.length) {
+        table.innerHTML = `<tr><td colspan="5">No records</td></tr>`;
         return;
     }
 
@@ -189,10 +169,8 @@ async function loadReports() {
             <td>${d.Bill}</td>
             <td>
                 <button onclick="editRow(${i},
-                '${d.Year}',
-                '${d.Month}',
-                '${d.Consumption}',
-                '${d.Bill}')">✏️</button>
+                    '${d.Year}','${d.Month}',
+                    '${d.Consumption}','${d.Bill}')">✏️</button>
 
                 <button onclick="deleteRow(${i})">🗑️</button>
             </td>
@@ -208,9 +186,9 @@ async function loadDashboard() {
     const d = await safeFetch(`${BASE_URL}/api/dashboard`);
     if (!d) return;
 
-    total.innerText = Number(d.total).toFixed(1);
-    avg.innerText = Number(d.avg).toFixed(1);
-    bill_total.innerText = Number(d.bill).toFixed(2);
+    el("total").innerText = (+d.total || 0).toFixed(1);
+    el("avg").innerText = (+d.avg || 0).toFixed(1);
+    el("bill_total").innerText = (+d.bill || 0).toFixed(2);
 }
 
 /* =====================================
@@ -221,43 +199,46 @@ async function loadForecast() {
     const d = await safeFetch(`${BASE_URL}/api/forecast`);
 
     if (!d || d.error) {
-        forecast.innerText = "Need 3 records";
+        el("forecast").innerText = "Need 3 records";
         return;
     }
 
-    forecast.innerText =
-        d.future_bill
-        .map(x => "₱" + Number(x).toFixed(2))
-        .join(" → ");
+    el("forecast").innerText =
+        d.future_bill.map(x =>
+            "₱" + Number(x).toFixed(2)
+        ).join(" → ");
 }
 
 /* =====================================
-   ANOMALY DETECT + POPUP
+   ANOMALY FIXED (REAL DETECTION)
+   - detects spike vs average
 ===================================== */
 async function loadAnomaly() {
 
     const d = await safeFetch(`${BASE_URL}/api/anomaly`);
-
     if (!d) return;
 
-    const bad = d.filter(x =>
-        x.status === "ANOMALY"
+    const list = d || [];
+
+    const values = list.map(x => +x.Consumption || 0);
+    const avg = values.reduce((a,b)=>a+b,0) / (values.length || 1);
+
+    // REAL anomaly rule (fixed)
+    const bad = list.filter(x =>
+        (+x.Consumption > avg * 1.5) // spike detection
     );
 
-    anomaly.innerHTML = bad.length
+    el("anomaly").innerHTML =
+        bad.length
         ? bad.map(a =>
-          `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
+            `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
           ).join("<br>")
         : "No anomalies";
 
-    // popup immediately if anomaly exists
     if (bad.length && !anomalyClosed) {
 
-        const popup =
-            document.getElementById("anomalyPopup");
-
-        const body =
-            document.getElementById("anomalyPopupBody");
+        const popup = el("anomalyPopup");
+        const body = el("anomalyPopupBody");
 
         body.innerHTML = bad.map(a =>
             `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
@@ -273,24 +254,11 @@ async function loadAnomaly() {
 async function loadChart() {
 
     const d = await safeFetch(`${BASE_URL}/api/forecast`);
-    const ctx = document.getElementById("chart");
+    const ctx = el("chart");
 
-    if (!ctx) return;
+    if (!ctx || !d || d.error) return;
 
     if (chartInstance) chartInstance.destroy();
-
-    if (!d || d.error) return;
-
-    const actual = [
-        ...d.history_actual,
-        null, null, null
-    ];
-
-    const predicted = [
-        ...Array(d.history_actual.length - 1).fill(null),
-        d.history_actual[d.history_actual.length - 1],
-        ...d.future_bill
-    ];
 
     chartInstance = new Chart(ctx, {
         type: "line",
@@ -298,20 +266,19 @@ async function loadChart() {
             labels: d.labels,
             datasets: [
                 {
-                    label: "Actual Bill",
-                    data: actual,
+                    label: "Actual",
+                    data: d.history_actual,
                     borderColor: "#170C79",
                     borderWidth: 3,
-                    fill: false,
                     tension: 0.35
                 },
                 {
-                    label: "Predicted Bill",
-                    data: predicted,
+                    label: "Predicted",
+                    data: [...Array(d.history_actual.length-1).fill(null),
+                        ...d.future_bill],
                     borderColor: "#56B6C6",
-                    borderDash: [7,5],
+                    borderDash: [6,4],
                     borderWidth: 3,
-                    fill: false,
                     tension: 0.35
                 }
             ]
@@ -324,38 +291,27 @@ async function loadChart() {
 }
 
 /* =====================================
-   MAINTENANCE DATE
+   MAINTENANCE FIXED (DATE BUG FIX)
 ===================================== */
 async function setMaintenance() {
 
-    const date =
-        document.getElementById("maintenanceDate").value;
+    const date = el("maintenanceDate").value;
+    if (!date) return alert("Select date first");
 
-    if (!date) {
-        alert("Select date first");
-        return;
-    }
+    const target = new Date(date);
+    target.setHours(0,0,0,0);
 
-    const res = await fetch(
-        `${BASE_URL}/api/maintenance`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type":"application/json"
-            },
-            body: JSON.stringify({ date })
-        }
-    );
+    const res = await fetch(`${BASE_URL}/api/maintenance`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ date })
+    });
 
     const d = await res.json();
 
-    nextMaintenance.innerText =
-        d.next_maintenance;
+    el("nextMaintenance").innerText = d.next_maintenance;
 
-    localStorage.setItem(
-        "maintenanceDate",
-        d.next_maintenance
-    );
+    localStorage.setItem("maintenanceDate", date);
 
     maintenanceClosed = false;
 
@@ -363,15 +319,13 @@ async function setMaintenance() {
 }
 
 /* =====================================
-   MAINTENANCE POPUP
+   MAINTENANCE POPUP FIXED
 ===================================== */
 function checkMaintenanceReminder() {
 
     if (maintenanceClosed) return;
 
-    const saved =
-        localStorage.getItem("maintenanceDate");
-
+    const saved = localStorage.getItem("maintenanceDate");
     if (!saved) return;
 
     const today = new Date();
@@ -380,40 +334,34 @@ function checkMaintenanceReminder() {
     const target = new Date(saved);
     target.setHours(0,0,0,0);
 
-    const days =
-        Math.ceil((target - today)/86400000);
+    const days = Math.ceil((target - today)/86400000);
 
     if (days > 10 || days < 0) return;
 
-    const popup =
-        document.getElementById("maintenancePopup");
+    el("maintenancePopup").style.display = "flex";
 
-    popup.style.display = "flex";
-
-    popupIcon.innerText =
+    el("popupIcon").innerText =
         days === 0 ? "🚨" : "⚠️";
 
-    popupTitle.innerText =
-        days === 0 ?
-        "Maintenance Today" :
-        "Upcoming Maintenance";
+    el("popupTitle").innerText =
+        days === 0 ? "Maintenance Today" : "Upcoming Maintenance";
 
-    popupText.innerText =
-        days === 0 ?
-        "Today is maintenance day." :
-        `Maintenance due in ${days} day(s).`;
+    el("popupText").innerText =
+        days === 0
+        ? "Today is maintenance day."
+        : `Maintenance due in ${days} day(s).`;
 }
 
 /* =====================================
-   CLOSE POPUPS
+   CLOSE POPUPS FIXED
 ===================================== */
 function closeMaintenancePopup() {
-    maintenancePopup.style.display = "none";
+    el("maintenancePopup").style.display = "none";
     maintenanceClosed = true;
 }
 
 function closeAnomalyPopup() {
-    anomalyPopup.style.display = "none";
+    el("anomalyPopup").style.display = "none";
     anomalyClosed = true;
 }
 
