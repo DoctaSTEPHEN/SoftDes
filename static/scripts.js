@@ -8,12 +8,12 @@ let maintenanceClosed = false;
 let anomalyClosed = false;
 
 /* =====================================
-   SAFE GET ELEMENT
+   SAFE ELEMENT
 ===================================== */
 const el = (id) => document.getElementById(id);
 
 /* =====================================
-   PAGE NAVIGATION
+   NAVIGATION
 ===================================== */
 function showPage(page, btn) {
 
@@ -45,36 +45,47 @@ function toggleCalendar() {
 }
 
 /* =====================================
-   SAFE FETCH
+   VALIDATION HELPERS
 ===================================== */
-async function safeFetch(url) {
-    try {
-        const r = await fetch(url);
-        return await r.json();
-    } catch {
-        return null;
-    }
+function isNumber(v) {
+    return !isNaN(v) && v !== "" && v !== null;
 }
 
 /* =====================================
-   ADD RECORD (VALIDATION ADDED)
+   ADD RECORD (WITH FULL VALIDATION)
 ===================================== */
 async function addRecord() {
 
     const year = el("year").value.trim();
-    const month = el("month").value;
+    const month = el("month").value.trim();
     const consumption = el("consumption").value.trim();
     const bill = el("bill").value.trim();
 
-    // FIELD VALIDATION
+    // YEAR
     if (!year) return alert("Year is required.");
-    if (!month) return alert("Month is required.");
-    if (!consumption) return alert("Consumption is required.");
-    if (!bill) return alert("Bill is required.");
+    if (!isNumber(year)) return alert("Year must be a number.");
+    if (year < 2000 || year > 2100)
+        return alert("Year must be between 2000 and 2100.");
 
-    if (isNaN(year)) return alert("Year must be a number.");
-    if (isNaN(consumption)) return alert("Consumption must be a number.");
-    if (isNaN(bill)) return alert("Bill must be a number.");
+    // MONTH
+    if (!month) return alert("Month is required.");
+    if (!isNumber(month)) return alert("Month must be a number.");
+    if (month < 1 || month > 12)
+        return alert("Month must be between 1 and 12.");
+
+    // CONSUMPTION
+    if (!consumption) return alert("Consumption is required.");
+    if (!isNumber(consumption))
+        return alert("Consumption must be a number.");
+    if (consumption < 0)
+        return alert("Consumption cannot be negative.");
+
+    // BILL
+    if (!bill) return alert("Bill is required.");
+    if (!isNumber(bill))
+        return alert("Bill must be a number.");
+    if (bill < 0)
+        return alert("Bill cannot be negative.");
 
     const data = {
         Year: year,
@@ -83,51 +94,54 @@ async function addRecord() {
         Bill: bill
     };
 
-    const res = await fetch(`${BASE_URL}/api/add`, {
+    await fetch(`${BASE_URL}/api/add`, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify(data)
     });
 
-    const d = await res.json();
-
-    if (d.error) return alert(d.error);
-
     refreshAll();
 }
 
 /* =====================================
-   UPLOAD FILE (TYPE VALIDATION FIXED)
+   FILE UPLOAD VALIDATION (FIXED)
 ===================================== */
 async function uploadFile() {
 
     const file = el("file").files[0];
 
-    if (!file) return alert("Please select a file first.");
+    if (!file) {
+        return alert("No file selected. Please choose a file first.");
+    }
 
+    // allowed types
     const allowed = [
         "text/csv",
         "application/vnd.ms-excel",
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     ];
 
-    if (!allowed.includes(file.type)) {
-        return alert("Invalid file type. Please upload CSV or XLSX only.");
+    const fileName = file.name.toLowerCase();
+
+    const isValidType =
+        allowed.includes(file.type) ||
+        fileName.endsWith(".csv") ||
+        fileName.endsWith(".xlsx") ||
+        fileName.endsWith(".xls");
+
+    if (!isValidType) {
+        return alert(
+            "Invalid file type.\nAllowed: CSV, XLS, XLSX only."
+        );
     }
 
     const form = new FormData();
     form.append("file", file);
 
-    const res = await fetch(`${BASE_URL}/api/upload`, {
+    await fetch(`${BASE_URL}/api/upload`, {
         method: "POST",
         body: form
     });
-
-    const d = await res.json();
-
-    if (d.error) {
-        return alert("Upload failed: " + d.error);
-    }
 
     refreshAll();
 }
@@ -180,10 +194,6 @@ async function editRow(i, y, m, c, b) {
     const Bill = prompt("Bill:", b);
     if (Bill === null) return;
 
-    if (isNaN(Year) || isNaN(Consumption) || isNaN(Bill)) {
-        return alert("Invalid numeric input.");
-    }
-
     await fetch(`${BASE_URL}/api/edit/${i}`, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
@@ -204,7 +214,8 @@ async function loadReports() {
     table.innerHTML = "";
 
     if (!data || !data.length) {
-        table.innerHTML = `<tr><td colspan="5">No records</td></tr>`;
+        table.innerHTML =
+        `<tr><td colspan="5">No records</td></tr>`;
         return;
     }
 
@@ -343,8 +354,7 @@ async function loadChart() {
 async function setMaintenance() {
 
     const date = el("maintenanceDate").value;
-
-    if (!date) return alert("Please select a maintenance date.");
+    if (!date) return alert("Please select a date.");
 
     await fetch(`${BASE_URL}/api/maintenance`, {
         method: "POST",
@@ -360,7 +370,44 @@ async function setMaintenance() {
 }
 
 /* =====================================
-   POPUPS
+   MAINTENANCE POPUP
+===================================== */
+function checkMaintenanceReminder() {
+
+    if (maintenanceClosed) return;
+
+    const saved = localStorage.getItem("maintenanceDate");
+    if (!saved) return;
+
+    const today = new Date();
+    today.setHours(0,0,0,0);
+
+    const target = new Date(saved);
+    target.setHours(0,0,0,0);
+
+    const days =
+        Math.ceil((target - today)/86400000);
+
+    if (days > 10 || days < 0) return;
+
+    el("maintenancePopup").style.display = "flex";
+
+    el("popupIcon").innerText =
+        days === 0 ? "🚨" : "⚠️";
+
+    el("popupTitle").innerText =
+        days === 0
+        ? "Maintenance Today"
+        : "Upcoming Maintenance";
+
+    el("popupText").innerText =
+        days === 0
+        ? "Today is maintenance day."
+        : `Maintenance due in ${days} day(s).`;
+}
+
+/* =====================================
+   CLOSE POPUPS
 ===================================== */
 function closeMaintenancePopup() {
     el("maintenancePopup").style.display = "none";
