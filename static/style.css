@@ -1,101 +1,267 @@
-body {
-    margin: 0;
-    font-family: Arial;
-    background: #EFE3CA;
+const BASE_URL = window.location.origin;
+
+let chartInstance = null;
+let maintenanceClosed = false;
+let anomalyClosed = false;
+
+/* PAGE */
+function showPage(page, el) {
+
+    document.querySelectorAll(".menu-item")
+        .forEach(x => x.classList.remove("active"));
+
+    if (el) el.classList.add("active");
+
+    document.querySelectorAll(".page")
+        .forEach(x => x.classList.remove("active"));
+
+    document.getElementById(page).classList.add("active");
+
+    document.getElementById("title").innerText =
+        page.charAt(0).toUpperCase() + page.slice(1);
+
+    if (page === "reports") loadReports();
 }
 
-/* LAYOUT */
-.container {
-    display: grid;
-    grid-template-columns: 260px 1fr;
+/* FETCH */
+async function safeFetch(url) {
+    try {
+        const r = await fetch(url);
+        return await r.json();
+    } catch {
+        return null;
+    }
 }
 
-/* SIDEBAR */
-.sidebar {
-    background: #170C79;
-    color: white;
-    min-height: 100vh;
-    padding: 20px;
+/* ADD */
+async function addRecord() {
+
+    const data = {
+        Year: year.value,
+        Month: month.value,
+        Consumption: consumption.value,
+        Bill: bill.value
+    };
+
+    await fetch(`${BASE_URL}/api/add`, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(data)
+    });
+
+    refreshAll();
 }
 
-.logo-circle img {
-    width: 60px;
-    border-radius: 50%;
+/* UPLOAD */
+async function uploadFile() {
+
+    const file = document.getElementById("file").files[0];
+    if (!file) return alert("Select file");
+
+    const form = new FormData();
+    form.append("file", file);
+
+    await fetch(`${BASE_URL}/api/upload`, {
+        method: "POST",
+        body: form
+    });
+
+    refreshAll();
 }
 
-.menu-item {
-    padding: 10px;
-    cursor: pointer;
+/* RESET */
+async function resetData() {
+    if (!confirm("Reset all?")) return;
+
+    await fetch(`${BASE_URL}/api/reset`, {method:"POST"});
+    refreshAll();
 }
 
-.menu-item.active {
-    background: #56B6C6;
+/* DELETE (FIXED REQUIRED BACKEND SUPPORT) */
+async function deleteRow(index) {
+    await fetch(`${BASE_URL}/api/delete/${index}`, {method:"POST"});
+    refreshAll();
 }
 
-/* MAIN */
-.main {
-    padding: 20px;
+/* REPORTS */
+async function loadReports() {
+
+    const data = await safeFetch(`${BASE_URL}/api/data`);
+    const table = document.getElementById("reportTable");
+
+    table.innerHTML = "";
+
+    if (!data?.length) {
+        table.innerHTML = `<tr><td colspan="5">No records</td></tr>`;
+        return;
+    }
+
+    data.forEach((d, i) => {
+        table.innerHTML += `
+        <tr>
+            <td>${d.Year}</td>
+            <td>${d.Month}</td>
+            <td>${d.Consumption}</td>
+            <td>${d.Bill}</td>
+            <td>
+                <button onclick="deleteRow(${i})">🗑️</button>
+            </td>
+        </tr>`;
+    });
 }
 
-/* CARDS */
-.card {
-    background: white;
-    padding: 15px;
-    border-radius: 12px;
-    margin-bottom: 10px;
+/* DASHBOARD */
+async function loadDashboard() {
+
+    const d = await safeFetch(`${BASE_URL}/api/dashboard`);
+    if (!d) return;
+
+    total.innerText = d.total.toFixed(1);
+    avg.innerText = d.avg.toFixed(1);
+    bill_total.innerText = (d.bill / d.records || 0).toFixed(1);
 }
 
-/* GRID */
-.grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+/* FORECAST */
+async function loadForecast() {
+
+    const d = await safeFetch(`${BASE_URL}/api/forecast`);
+
+    if (!d || d.error) {
+        forecast.innerText = "Need 3 records";
+        return;
+    }
+
+    forecast.innerText =
+        d.future_bill.map(x => "₱" + x.toFixed(2)).join(" → ");
 }
 
-/* BUTTONS */
-.btn {
-    background: #56B6C6;
-    border: none;
-    padding: 8px;
-    color: white;
-    cursor: pointer;
+/* ANOMALY */
+async function loadAnomaly() {
+
+    const d = await safeFetch(`${BASE_URL}/api/anomaly`);
+    if (!d) return;
+
+    const bad = d.filter(x => x.status === "ANOMALY");
+
+    const box = document.getElementById("anomaly");
+    if (box) {
+        box.innerHTML = bad.length
+            ? bad.map(a => `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`).join("<br>")
+            : "No anomalies";
+    }
+
+    if (bad.length && !anomalyClosed) {
+        document.getElementById("anomalyPopupBody").innerHTML =
+            bad.map(a => `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`).join("<br>");
+
+        document.getElementById("anomalyPopup").style.display = "flex";
+    }
 }
 
-.btn-danger {
-    background: red;
+/* CHART (UNCHANGED LOOK) */
+async function loadChart() {
+
+    const d = await safeFetch(`${BASE_URL}/api/forecast`);
+    const ctx = document.getElementById("chart");
+
+    if (chartInstance) chartInstance.destroy();
+
+    if (!d || d.error) return;
+
+    chartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: d.labels,
+            datasets: [{
+                label: "Actual",
+                data: d.history_actual,
+                borderColor: "#170C79",
+                tension: 0.35,
+                fill: true
+            },{
+                label: "Predicted",
+                data: d.future_bill,
+                borderColor: "#56B6C6",
+                borderDash: [8,6],
+                tension: 0.35
+            }]
+        }
+    });
 }
 
-/* TABLE */
-table {
-    width: 100%;
-    background: white;
+/* MAINTENANCE */
+function openMaintenanceCalendar() {
+    const box = document.getElementById("calendarBox");
+    box.style.display = box.style.display === "block" ? "none" : "block";
 }
 
-th, td {
-    padding: 8px;
+async function setMaintenance() {
+
+    const input = document.getElementById("maintenanceDate");
+    if (!input.value) return alert("Select date");
+
+    const res = await fetch(`${BASE_URL}/api/maintenance`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({date: input.value})
+    });
+
+    const d = await res.json();
+
+    nextMaintenance.innerText = d.next_maintenance;
+    localStorage.setItem("maintenanceDate", d.next_maintenance);
+
+    maintenanceClosed = false;
+    checkMaintenance();
 }
 
-/* POPUP */
-.popup {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.4);
-    justify-content: center;
-    align-items: center;
+/* MAINTENANCE POPUP */
+function checkMaintenance() {
+
+    if (maintenanceClosed) return;
+
+    const saved = localStorage.getItem("maintenanceDate");
+    if (!saved) return;
+
+    const today = new Date();
+    const target = new Date(saved);
+
+    const diff = Math.ceil((target - today)/86400000);
+
+    if (diff < 0 || diff > 10) return;
+
+    popupIcon.innerText = diff === 0 ? "🚨" : "⚠️";
+    popupTitle.innerText = diff === 0 ? "Today" : "Upcoming";
+    popupText.innerText = diff === 0
+        ? "Maintenance today"
+        : `In ${diff} days`;
+
+    maintenancePopup.style.display = "flex";
 }
 
-.popup-box {
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    width: 300px;
+/* CLOSE */
+function closeMaintenancePopup(){
+    maintenancePopup.style.display = "none";
+    maintenanceClosed = true;
 }
 
-.anomaly {
-    border-left: 5px solid red;
+function closeAnomalyPopup(){
+    anomalyPopup.style.display = "none";
+    anomalyClosed = true;
 }
 
-.maintenance {
-    border-left: 5px solid #56B6C6;
+/* REFRESH */
+async function refreshAll() {
+
+    await Promise.all([
+        loadDashboard(),
+        loadForecast(),
+        loadAnomaly(),
+        loadChart(),
+        loadReports()
+    ]);
+
+    checkMaintenance();
 }
+
+window.onload = refreshAll;
