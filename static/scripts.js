@@ -8,21 +8,19 @@ let maintenanceClosed = false;
 let anomalyClosed = false;
 
 /* =====================================
-   SAFE DOM GET
+   SAFE GET ELEMENT
 ===================================== */
-function el(id) {
-    return document.getElementById(id);
-}
+const el = (id) => document.getElementById(id);
 
 /* =====================================
-   PAGE NAV
+   PAGE NAVIGATION
 ===================================== */
-function showPage(page, elBtn) {
+function showPage(page, btn) {
 
     document.querySelectorAll(".menu-item")
         .forEach(x => x.classList.remove("active"));
 
-    if (elBtn) elBtn.classList.add("active");
+    if (btn) btn.classList.add("active");
 
     document.querySelectorAll(".page")
         .forEach(x => x.classList.remove("active"));
@@ -36,7 +34,18 @@ function showPage(page, elBtn) {
 }
 
 /* =====================================
-   FETCH SAFE
+   TOGGLE CALENDAR (FIXED ERROR)
+===================================== */
+function toggleCalendar() {
+    const box = el("calendarBox");
+    if (!box) return;
+
+    box.style.display =
+        box.style.display === "block" ? "none" : "block";
+}
+
+/* =====================================
+   SAFE FETCH
 ===================================== */
 async function safeFetch(url) {
     try {
@@ -48,7 +57,7 @@ async function safeFetch(url) {
 }
 
 /* =====================================
-   ADD
+   ADD RECORD
 ===================================== */
 async function addRecord() {
 
@@ -69,7 +78,7 @@ async function addRecord() {
 }
 
 /* =====================================
-   UPLOAD
+   UPLOAD FILE
 ===================================== */
 async function uploadFile() {
 
@@ -88,7 +97,7 @@ async function uploadFile() {
 }
 
 /* =====================================
-   RESET
+   RESET DATA
 ===================================== */
 async function resetData() {
 
@@ -105,7 +114,7 @@ async function resetData() {
 }
 
 /* =====================================
-   DELETE
+   DELETE ROW
 ===================================== */
 async function deleteRow(i) {
 
@@ -119,7 +128,7 @@ async function deleteRow(i) {
 }
 
 /* =====================================
-   EDIT
+   EDIT ROW
 ===================================== */
 async function editRow(i, y, m, c, b) {
 
@@ -155,12 +164,12 @@ async function loadReports() {
     table.innerHTML = "";
 
     if (!data || !data.length) {
-        table.innerHTML = `<tr><td colspan="5">No records</td></tr>`;
+        table.innerHTML =
+        `<tr><td colspan="5">No records</td></tr>`;
         return;
     }
 
     data.forEach((d, i) => {
-
         table.innerHTML += `
         <tr>
             <td>${d.Year}</td>
@@ -169,8 +178,8 @@ async function loadReports() {
             <td>${d.Bill}</td>
             <td>
                 <button onclick="editRow(${i},
-                    '${d.Year}','${d.Month}',
-                    '${d.Consumption}','${d.Bill}')">✏️</button>
+                '${d.Year}','${d.Month}',
+                '${d.Consumption}','${d.Bill}')">✏️</button>
 
                 <button onclick="deleteRow(${i})">🗑️</button>
             </td>
@@ -210,22 +219,22 @@ async function loadForecast() {
 }
 
 /* =====================================
-   ANOMALY FIXED (REAL DETECTION)
-   - detects spike vs average
+   ANOMALY DETECTION (FIXED LOGIC)
 ===================================== */
 async function loadAnomaly() {
 
     const d = await safeFetch(`${BASE_URL}/api/anomaly`);
     if (!d) return;
 
-    const list = d || [];
+    const values = d.map(x => +x.Consumption || 0);
 
-    const values = list.map(x => +x.Consumption || 0);
-    const avg = values.reduce((a,b)=>a+b,0) / (values.length || 1);
+    const avg =
+        values.reduce((a,b)=>a+b,0) /
+        (values.length || 1);
 
-    // REAL anomaly rule (fixed)
-    const bad = list.filter(x =>
-        (+x.Consumption > avg * 1.5) // spike detection
+    // spike detection (FIXED)
+    const bad = d.filter(x =>
+        (+x.Consumption > avg * 1.5)
     );
 
     el("anomaly").innerHTML =
@@ -274,8 +283,10 @@ async function loadChart() {
                 },
                 {
                     label: "Predicted",
-                    data: [...Array(d.history_actual.length-1).fill(null),
-                        ...d.future_bill],
+                    data: [
+                        ...Array(d.history_actual.length - 1).fill(null),
+                        ...d.future_bill
+                    ],
                     borderColor: "#56B6C6",
                     borderDash: [6,4],
                     borderWidth: 3,
@@ -291,25 +302,18 @@ async function loadChart() {
 }
 
 /* =====================================
-   MAINTENANCE FIXED (DATE BUG FIX)
+   MAINTENANCE SET (FIXED DATE HANDLING)
 ===================================== */
 async function setMaintenance() {
 
     const date = el("maintenanceDate").value;
     if (!date) return alert("Select date first");
 
-    const target = new Date(date);
-    target.setHours(0,0,0,0);
-
-    const res = await fetch(`${BASE_URL}/api/maintenance`, {
+    await fetch(`${BASE_URL}/api/maintenance`, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify({ date })
     });
-
-    const d = await res.json();
-
-    el("nextMaintenance").innerText = d.next_maintenance;
 
     localStorage.setItem("maintenanceDate", date);
 
@@ -319,7 +323,7 @@ async function setMaintenance() {
 }
 
 /* =====================================
-   MAINTENANCE POPUP FIXED
+   MAINTENANCE POPUP
 ===================================== */
 function checkMaintenanceReminder() {
 
@@ -334,7 +338,8 @@ function checkMaintenanceReminder() {
     const target = new Date(saved);
     target.setHours(0,0,0,0);
 
-    const days = Math.ceil((target - today)/86400000);
+    const days =
+        Math.ceil((target - today)/86400000);
 
     if (days > 10 || days < 0) return;
 
@@ -344,7 +349,9 @@ function checkMaintenanceReminder() {
         days === 0 ? "🚨" : "⚠️";
 
     el("popupTitle").innerText =
-        days === 0 ? "Maintenance Today" : "Upcoming Maintenance";
+        days === 0
+        ? "Maintenance Today"
+        : "Upcoming Maintenance";
 
     el("popupText").innerText =
         days === 0
@@ -353,7 +360,7 @@ function checkMaintenanceReminder() {
 }
 
 /* =====================================
-   CLOSE POPUPS FIXED
+   CLOSE POPUPS (FIXED)
 ===================================== */
 function closeMaintenancePopup() {
     el("maintenancePopup").style.display = "none";
@@ -366,7 +373,7 @@ function closeAnomalyPopup() {
 }
 
 /* =====================================
-   REFRESH
+   REFRESH ALL
 ===================================== */
 async function refreshAll() {
 
