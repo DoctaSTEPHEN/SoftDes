@@ -34,7 +34,7 @@ function showPage(page, btn) {
 }
 
 /* =====================================
-   TOGGLE CALENDAR (FIXED ERROR)
+   TOGGLE CALENDAR
 ===================================== */
 function toggleCalendar() {
     const box = el("calendarBox");
@@ -57,47 +57,83 @@ async function safeFetch(url) {
 }
 
 /* =====================================
-   ADD RECORD
+   ADD RECORD (VALIDATION ADDED)
 ===================================== */
 async function addRecord() {
 
+    const year = el("year").value.trim();
+    const month = el("month").value;
+    const consumption = el("consumption").value.trim();
+    const bill = el("bill").value.trim();
+
+    // FIELD VALIDATION
+    if (!year) return alert("Year is required.");
+    if (!month) return alert("Month is required.");
+    if (!consumption) return alert("Consumption is required.");
+    if (!bill) return alert("Bill is required.");
+
+    if (isNaN(year)) return alert("Year must be a number.");
+    if (isNaN(consumption)) return alert("Consumption must be a number.");
+    if (isNaN(bill)) return alert("Bill must be a number.");
+
     const data = {
-        Year: el("year").value,
-        Month: el("month").value,
-        Consumption: el("consumption").value,
-        Bill: el("bill").value
+        Year: year,
+        Month: month,
+        Consumption: consumption,
+        Bill: bill
     };
 
-    await fetch(`${BASE_URL}/api/add`, {
+    const res = await fetch(`${BASE_URL}/api/add`, {
         method: "POST",
         headers: {"Content-Type":"application/json"},
         body: JSON.stringify(data)
     });
 
+    const d = await res.json();
+
+    if (d.error) return alert(d.error);
+
     refreshAll();
 }
 
 /* =====================================
-   UPLOAD FILE
+   UPLOAD FILE (TYPE VALIDATION FIXED)
 ===================================== */
 async function uploadFile() {
 
     const file = el("file").files[0];
-    if (!file) return alert("Select file first.");
+
+    if (!file) return alert("Please select a file first.");
+
+    const allowed = [
+        "text/csv",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ];
+
+    if (!allowed.includes(file.type)) {
+        return alert("Invalid file type. Please upload CSV or XLSX only.");
+    }
 
     const form = new FormData();
     form.append("file", file);
 
-    await fetch(`${BASE_URL}/api/upload`, {
+    const res = await fetch(`${BASE_URL}/api/upload`, {
         method: "POST",
         body: form
     });
+
+    const d = await res.json();
+
+    if (d.error) {
+        return alert("Upload failed: " + d.error);
+    }
 
     refreshAll();
 }
 
 /* =====================================
-   RESET DATA
+   RESET
 ===================================== */
 async function resetData() {
 
@@ -114,7 +150,7 @@ async function resetData() {
 }
 
 /* =====================================
-   DELETE ROW
+   DELETE
 ===================================== */
 async function deleteRow(i) {
 
@@ -128,7 +164,7 @@ async function deleteRow(i) {
 }
 
 /* =====================================
-   EDIT ROW
+   EDIT
 ===================================== */
 async function editRow(i, y, m, c, b) {
 
@@ -143,6 +179,10 @@ async function editRow(i, y, m, c, b) {
 
     const Bill = prompt("Bill:", b);
     if (Bill === null) return;
+
+    if (isNaN(Year) || isNaN(Consumption) || isNaN(Bill)) {
+        return alert("Invalid numeric input.");
+    }
 
     await fetch(`${BASE_URL}/api/edit/${i}`, {
         method: "POST",
@@ -164,8 +204,7 @@ async function loadReports() {
     table.innerHTML = "";
 
     if (!data || !data.length) {
-        table.innerHTML =
-        `<tr><td colspan="5">No records</td></tr>`;
+        table.innerHTML = `<tr><td colspan="5">No records</td></tr>`;
         return;
     }
 
@@ -219,7 +258,7 @@ async function loadForecast() {
 }
 
 /* =====================================
-   ANOMALY DETECTION (FIXED LOGIC)
+   ANOMALY DETECTION
 ===================================== */
 async function loadAnomaly() {
 
@@ -232,7 +271,6 @@ async function loadAnomaly() {
         values.reduce((a,b)=>a+b,0) /
         (values.length || 1);
 
-    // spike detection (FIXED)
     const bad = d.filter(x =>
         (+x.Consumption > avg * 1.5)
     );
@@ -246,14 +284,12 @@ async function loadAnomaly() {
 
     if (bad.length && !anomalyClosed) {
 
-        const popup = el("anomalyPopup");
-        const body = el("anomalyPopupBody");
+        el("anomalyPopup").style.display = "flex";
 
-        body.innerHTML = bad.map(a =>
-            `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
-        ).join("<br>");
-
-        popup.style.display = "flex";
+        el("anomalyPopupBody").innerHTML =
+            bad.map(a =>
+                `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
+            ).join("<br>");
     }
 }
 
@@ -302,12 +338,13 @@ async function loadChart() {
 }
 
 /* =====================================
-   MAINTENANCE SET (FIXED DATE HANDLING)
+   MAINTENANCE
 ===================================== */
 async function setMaintenance() {
 
     const date = el("maintenanceDate").value;
-    if (!date) return alert("Select date first");
+
+    if (!date) return alert("Please select a maintenance date.");
 
     await fetch(`${BASE_URL}/api/maintenance`, {
         method: "POST",
@@ -323,44 +360,7 @@ async function setMaintenance() {
 }
 
 /* =====================================
-   MAINTENANCE POPUP
-===================================== */
-function checkMaintenanceReminder() {
-
-    if (maintenanceClosed) return;
-
-    const saved = localStorage.getItem("maintenanceDate");
-    if (!saved) return;
-
-    const today = new Date();
-    today.setHours(0,0,0,0);
-
-    const target = new Date(saved);
-    target.setHours(0,0,0,0);
-
-    const days =
-        Math.ceil((target - today)/86400000);
-
-    if (days > 10 || days < 0) return;
-
-    el("maintenancePopup").style.display = "flex";
-
-    el("popupIcon").innerText =
-        days === 0 ? "🚨" : "⚠️";
-
-    el("popupTitle").innerText =
-        days === 0
-        ? "Maintenance Today"
-        : "Upcoming Maintenance";
-
-    el("popupText").innerText =
-        days === 0
-        ? "Today is maintenance day."
-        : `Maintenance due in ${days} day(s).`;
-}
-
-/* =====================================
-   CLOSE POPUPS (FIXED)
+   POPUPS
 ===================================== */
 function closeMaintenancePopup() {
     el("maintenancePopup").style.display = "none";
@@ -373,7 +373,7 @@ function closeAnomalyPopup() {
 }
 
 /* =====================================
-   REFRESH ALL
+   REFRESH
 ===================================== */
 async function refreshAll() {
 
