@@ -1,486 +1,335 @@
-const BASE_URL = window.location.origin;
-let chartInstance = null;
+from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
+import pandas as pd
+import numpy as np
+import joblib
+import io
+import os
+from datetime import datetime, timedelta
 
-/* =====================================
-   POPUP FLAGS
-===================================== */
-let maintenanceClosed = false;
-let anomalyClosed = false;
+app = Flask(__name__)
+CORS(app)
 
-/* =====================================
-   PAGE
-===================================== */
-function showPage(page, el) {
+# =====================================
+# MODEL
+# =====================================
+try:
+    model = joblib.load("model/gb_model.pkl")
+except:
+    from sklearn.ensemble import GradientBoostingRegressor
+    model = GradientBoostingRegressor()
+    model.fit([[0, 1], [1, 2], [2, 3]], [1000, 1500, 2000])
 
-    document.querySelectorAll(".menu-item")
-        .forEach(x => x.classList.remove("active"));
+# =====================================
+# DATA STORE
+# =====================================
+data_store = pd.DataFrame(
+    columns=["Year", "Month", "Consumption", "Bill"]
+)
 
-    if (el) el.classList.add("active");
+# =====================================
+# HOME
+# =====================================
+@app.route("/")
+def home():
+    return render_template("index.html")
 
-    document.querySelectorAll(".page")
-        .forEach(x => x.classList.remove("active"));
 
-    document.getElementById(page).classList.add("active");
+# =====================================
+# ADD RECORD
+# =====================================
+@app.route("/api/add", methods=["POST"])
+def add_record():
+    global data_store
 
-    document.getElementById("title").innerText =
-        page.charAt(0).toUpperCase() + page.slice(1);
+    try:
+        data = request.json
 
-    if (page === "reports") loadReports();
-}
+        row = {
+            "Year": int(data["Year"]),
+            "Month": int(data["Month"]),
+            "Consumption": float(data["Consumption"]),
+            "Bill": float(data["Bill"])
+        }
 
-/* =====================================
-   SAFE FETCH
-===================================== */
-async function safeFetch(url) {
-    try {
-        const r = await fetch(url);
-        return await r.json();
-    } catch {
-        return null;
-    }
-}
+        data_store = pd.concat(
+            [data_store, pd.DataFrame([row])],
+            ignore_index=True
+        )
 
-/* =====================================
-   ADD RECORD
-===================================== */
-async function addRecord() {
+        return jsonify({"message": "added"})
 
-    const data = {
-        Year: year.value,
-        Month: month.value,
-        Consumption: consumption.value,
-        Bill: bill.value
-    };
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
-    const res = await fetch(`${BASE_URL}/api/add`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data)
-    });
 
-    const d = await res.json();
+# =====================================
+# UPLOAD FILE
+# =====================================
+@app.route("/api/upload", methods=["POST"])
+def upload_file():
+    global data_store
 
-    if (d.error) {
-        alert(d.error);
-        return;
-    }
+    try:
+        if "file" not in request.files:
+            return jsonify({"error": "No file uploaded"}), 400
 
-    refreshAll();
-}
+        file = request.files["file"]
 
-/* =====================================
-   UPLOAD
-===================================== */
-async function uploadFile() {
+        if file.filename == "":
+            return jsonify({"error": "No selected file"}), 400
 
-    const file = document.getElementById("file").files[0];
+        content = file.read()
 
-    if (!file) {
-        alert("Select file first.");
-        return;
-    }
+        if file.filename.lower().endswith(".csv"):
+            df = pd.read_csv(io.BytesIO(content))
+        elif file.filename.lower().endswith(".json"):
+            df = pd.read_json(io.BytesIO(content))
+        else:
+            return jsonify({"error": "Only CSV or JSON"}), 400
 
-    const form = new FormData();
-    form.append("file", file);
+        df.columns = [x.strip() for x in df.columns]
 
-    const res = await fetch(`${BASE_URL}/api/upload`, {
-        method: "POST",
-        body: form
-    });
+        required = ["Year", "Month", "Consumption", "Bill"]
 
-    const d = await res.json();
+        for col in required:
+            if col not in df.columns:
+                return jsonify({"error": f"Missing {col} column"}), 400
 
-    if (d.error) {
-        alert(d.error);
-        return;
-    }
+        df = df[required]
 
-    refreshAll();
-}
+        data_store = pd.concat(
+            [data_store, df],
+            ignore_index=True
+        )
 
-/* =====================================
-   RESET
-===================================== */
-async function resetData() {
+        return jsonify({"message": "uploaded"})
 
-    if (!confirm("Delete all records?")) return;
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
 
-    await fetch(`${BASE_URL}/api/reset`, {
-        method: "POST"
-    });
 
-    refreshAll();
-}
+# =====================================
+# DASHBOARD
+# =====================================
+@app.route("/api/dashboard")
+def dashboard():
 
-/* =====================================
-   DELETE RECORD
-===================================== */
-async function deleteRow(index) {
-
-    if (!confirm("Delete this record?")) return;
-
-    await fetch(`${BASE_URL}/api/delete/${index}`, {
-        method: "POST"
-    });
-
-    refreshAll();
-}
-
-/* =====================================
-   EDIT RECORD
-===================================== */
-async function editRow(index, y, m, c, b) {
-
-    const Year = prompt("Year:", y);
-    if (Year === null) return;
-
-    const Month = prompt("Month:", m);
-    if (Month === null) return;
-
-    const Consumption = prompt("Consumption:", c);
-    if (Consumption === null) return;
-
-    const Bill = prompt("Bill:", b);
-    if (Bill === null) return;
-
-    await fetch(`${BASE_URL}/api/edit/${index}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            Year, Month, Consumption, Bill
+    if data_store.empty:
+        return jsonify({
+            "total": 0,
+            "avg": 0,
+            "bill": 0
         })
-    });
-
-    refreshAll();
-}
-
-/* =====================================
-   REPORTS
-===================================== */
-async function loadReports() {
-
-    const data = await safeFetch(`${BASE_URL}/api/data`);
-    const table = document.getElementById("reportTable");
-
-    if (!table) return;
-
-    table.innerHTML = "";
-
-    if (!data || data.length === 0) {
-        table.innerHTML =
-        `<tr><td colspan="5">No records</td></tr>`;
-        return;
-    }
-
-    data.forEach((d, i) => {
-
-        table.innerHTML += `
-        <tr>
-            <td>${d.Year}</td>
-            <td>${d.Month}</td>
-            <td>${d.Consumption}</td>
-            <td>${d.Bill}</td>
-            <td>
-                <button onclick="editRow(${i},'${d.Year}','${d.Month}','${d.Consumption}','${d.Bill}')">✏️</button>
-                <button onclick="deleteRow(${i})">🗑️</button>
-            </td>
-        </tr>`;
-    });
-}
-
-/* =====================================
-   DASHBOARD
-===================================== */
-async function loadDashboard() {
-
-    const d = await safeFetch(`${BASE_URL}/api/dashboard`);
-    if (!d) return;
-
-    total.innerText = Number(d.total).toFixed(1);
-    avg.innerText = Number(d.avg).toFixed(1);
-    bill_total.innerText = Number(d.bill).toFixed(2);
-}
-
-/* =====================================
-   FORECAST TEXT
-===================================== */
-async function loadForecast() {
-
-    const d = await safeFetch(`${BASE_URL}/api/forecast`);
-
-    if (!d || d.error) {
-        forecast.innerText = "Need 3 records";
-        return;
-    }
-
-    forecast.innerText =
-        d.future_bill
-        .map(x => "₱" + Number(x).toFixed(2))
-        .join(" → ");
-}
-
-/* =====================================
-   ANOMALY
-===================================== */
-async function loadAnomaly() {
-
-    const d = await safeFetch(`${BASE_URL}/api/anomaly`);
-    if (!d) return;
-
-    const box = document.getElementById("anomaly");
-
-    const bad = d.filter(x =>
-        String(x.status).trim().toUpperCase() === "ANOMALY"
-    );
-
-    if (box) {
-        box.innerHTML = bad.length
-            ? bad.map(a =>
-                `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
-              ).join("<br>")
-            : "No anomalies";
-    }
-
-    /* popup */
-    if (bad.length && !anomalyClosed) {
-
-        const popup = document.getElementById("anomalyPopup");
-        const body = document.getElementById("anomalyPopupBody");
-
-        if (popup && body) {
-            body.innerHTML = bad.map(a =>
-                `⚠ ${a.Year}-${a.Month}: ${a.Consumption}`
-            ).join("<br>");
-
-            popup.style.display = "flex";
-        }
-    }
-}
-
-/* =====================================
-   CHART (UNCHANGED STYLE)
-===================================== */
-async function loadChart() {
-
-    const d = await safeFetch(`${BASE_URL}/api/forecast`);
-    const ctx = document.getElementById("chart");
-
-    if (!ctx) return;
-
-    if (chartInstance) chartInstance.destroy();
-
-    if (!d || d.error) {
-
-        chartInstance = new Chart(ctx, {
-            type: "line",
-            data: {
-                labels: ["No Data"],
-                datasets: [{
-                    label: "Waiting for 3 records",
-                    data: [0],
-                    borderColor: "#170C79",
-                    backgroundColor: "rgba(23,12,121,0.15)",
-                    pointRadius: 4,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
-            }
-        });
-
-        return;
-    }
-
-    const historyCount = d.history_actual.length;
-
-    const actualData = [
-        ...d.history_actual,
-        null, null, null
-    ];
-
-    const predictedData = [
-        ...Array(historyCount - 1).fill(null),
-        d.history_actual[historyCount - 1],
-        ...d.future_bill
-    ];
-
-    chartInstance = new Chart(ctx, {
-        type: "line",
-        data: {
-            labels: d.labels,
-            datasets: [
-                {
-                    label: "Actual Bill",
-                    data: actualData,
-                    borderColor: "#170C79",
-                    backgroundColor: "rgba(23,12,121,0.12)",
-                    pointBackgroundColor: "#170C79",
-                    pointBorderColor: "#170C79",
-                    pointRadius: 5,
-                    borderWidth: 3,
-                    tension: 0.35,
-                    fill: true
-                },
-                {
-                    label: "Predicted Bill",
-                    data: predictedData,
-                    borderColor: "#56B6C6",
-                    backgroundColor: "rgba(86,182,198,0.10)",
-                    pointBackgroundColor: "#56B6C6",
-                    pointBorderColor: "#56B6C6",
-                    pointRadius: 5,
-                    borderWidth: 3,
-                    borderDash: [8,6],
-                    tension: 0.35,
-                    fill: false
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false
-        }
-    });
-}
-
-/* =====================================
-   MAINTENANCE DATE
-===================================== */
-function openMaintenanceCalendar() {
-
-    const input =
-        document.getElementById("maintenanceDate");
-
-    if (input) input.showPicker();
-}
-
-async function setMaintenance() {
-
-    const input =
-        document.getElementById("maintenanceDate");
-
-    if (!input || !input.value) {
-        alert("Select maintenance date.");
-        return;
-    }
-
-    const res = await fetch(
-        `${BASE_URL}/api/maintenance`,
-        {
-            method: "POST",
-            headers: {
-                "Content-Type":"application/json"
-            },
-            body: JSON.stringify({
-                date: input.value
-            })
-        }
-    );
-
-    const d = await res.json();
-
-    if (d.error) {
-        alert(d.error);
-        return;
-    }
-
-    nextMaintenance.innerText =
-        d.next_maintenance;
-
-    localStorage.setItem(
-        "maintenanceDate",
-        d.next_maintenance
-    );
-
-    maintenanceClosed = false;
-
-    checkMaintenanceReminder();
-}
-
-/* =====================================
-   MAINTENANCE POPUP
-===================================== */
-function checkMaintenanceReminder() {
-
-    if (maintenanceClosed) return;
-
-    const saved =
-        localStorage.getItem("maintenanceDate");
-
-    if (!saved) return;
-
-    const today = new Date();
-    today.setHours(0,0,0,0);
-
-    const target = new Date(saved);
-    target.setHours(0,0,0,0);
-
-    const days =
-        Math.ceil((target - today) / 86400000);
-
-    if (days > 10 || days < 0) return;
-
-    const popup =
-        document.getElementById("maintenancePopup");
-
-    if (!popup) return;
-
-    popup.style.display = "flex";
-
-    popupIcon.innerText =
-        days === 0 ? "🚨" : "⚠️";
-
-    popupTitle.innerText =
-        days === 0
-        ? "Maintenance Today"
-        : "Upcoming Maintenance";
-
-    popupText.innerText =
-        days === 0
-        ? "Today is maintenance day."
-        : `Maintenance due in ${days} day(s).`;
-}
-
-/* =====================================
-   CLOSE POPUPS
-===================================== */
-function closeMaintenancePopup() {
-    const popup =
-        document.getElementById("maintenancePopup");
-
-    if (popup) popup.style.display = "none";
-
-    maintenanceClosed = true;
-}
-
-function closeAnomalyPopup() {
-    const popup =
-        document.getElementById("anomalyPopup");
-
-    if (popup) popup.style.display = "none";
-
-    anomalyClosed = true;
-}
-
-/* =====================================
-   REFRESH
-===================================== */
-async function refreshAll() {
-
-    await Promise.all([
-        loadDashboard(),
-        loadForecast(),
-        loadAnomaly(),
-        loadChart(),
-        loadReports()
-    ]);
-
-    checkMaintenanceReminder();
-}
-
-/* =====================================
-   INIT
-===================================== */
-window.onload = refreshAll;
+
+    return jsonify({
+        "total": float(data_store["Consumption"].sum()),
+        "avg": float(data_store["Consumption"].mean()),
+        "bill": float(data_store["Bill"].mean())
+    })
+
+
+# =====================================
+# GET DATA
+# =====================================
+@app.route("/api/data")
+def get_data():
+
+    if data_store.empty:
+        return jsonify([])
+
+    df = data_store.sort_values(
+        ["Year", "Month"]
+    ).reset_index(drop=True)
+
+    return jsonify(df.to_dict("records"))
+
+
+# =====================================
+# DELETE SINGLE ROW
+# =====================================
+@app.route("/api/delete/<int:index>", methods=["POST"])
+def delete_row(index):
+    global data_store
+
+    try:
+        if index < 0 or index >= len(data_store):
+            return jsonify({"error": "Invalid row"}), 400
+
+        data_store = data_store.drop(
+            data_store.index[index]
+        ).reset_index(drop=True)
+
+        return jsonify({"message": "deleted"})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# =====================================
+# EDIT ROW
+# =====================================
+@app.route("/api/edit/<int:index>", methods=["POST"])
+def edit_row(index):
+    global data_store
+
+    try:
+        data = request.json
+
+        data_store.loc[index, "Year"] = int(data["Year"])
+        data_store.loc[index, "Month"] = int(data["Month"])
+        data_store.loc[index, "Consumption"] = float(data["Consumption"])
+        data_store.loc[index, "Bill"] = float(data["Bill"])
+
+        return jsonify({"message": "updated"})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# =====================================
+# FORECAST
+# =====================================
+@app.route("/api/forecast")
+def forecast():
+
+    if len(data_store) < 3:
+        return jsonify({"error": "Need 3 records"})
+
+    try:
+        df = data_store.sort_values(
+            ["Year", "Month"]
+        ).reset_index(drop=True)
+
+        history = df["Bill"].astype(float).tolist()
+
+        X = np.column_stack([
+            np.arange(len(df)),
+            df["Month"].astype(int).values,
+            df["Consumption"].astype(float).values
+        ])
+
+        y = df["Bill"].astype(float).values
+
+        model.fit(X, y)
+
+        last_index = len(df)
+        last_month = int(df["Month"].iloc[-1])
+
+        avg_cons = float(df["Consumption"].tail(6).mean())
+
+        future_X = []
+        labels = []
+
+        for i in range(1, 4):
+            month = ((last_month + i - 1) % 12) + 1
+
+            future_X.append([
+                last_index + i,
+                month,
+                avg_cons
+            ])
+
+            labels.append(f"F{i}")
+
+        pred = model.predict(np.array(future_X))
+
+        pred = [round(float(x), 2) for x in pred]
+
+        old_labels = [
+            f"{int(r.Year)}-{int(r.Month):02d}"
+            for _, r in df.iterrows()
+        ]
+
+        return jsonify({
+            "labels": old_labels + labels,
+            "history_actual": history,
+            "future_bill": pred
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+# =====================================
+# ANOMALY CHECK
+# BOTH CONSUMPTION + BILL
+# =====================================
+@app.route("/api/anomaly")
+def anomaly():
+
+    if data_store.empty:
+        return jsonify([])
+
+    df = data_store.copy()
+
+    c_mean = df["Consumption"].mean()
+    c_std = df["Consumption"].std()
+
+    b_mean = df["Bill"].mean()
+    b_std = df["Bill"].std()
+
+    if pd.isna(c_std):
+        c_std = 0
+
+    if pd.isna(b_std):
+        b_std = 0
+
+    c_limit = c_mean + (1.5 * c_std)
+    b_limit = b_mean + (1.5 * b_std)
+
+    def detect(row):
+        if row["Consumption"] > c_limit:
+            return "ANOMALY"
+        if row["Bill"] > b_limit:
+            return "ANOMALY"
+        return "NORMAL"
+
+    df["status"] = df.apply(detect, axis=1)
+
+    return jsonify(df.to_dict("records"))
+
+
+# =====================================
+# RESET ALL
+# =====================================
+@app.route("/api/reset", methods=["POST"])
+def reset():
+    global data_store
+
+    data_store = data_store.iloc[0:0]
+
+    return jsonify({"message": "reset done"})
+
+
+# =====================================
+# MAINTENANCE DATE +90 DAYS
+# =====================================
+@app.route("/api/maintenance", methods=["POST"])
+def maintenance():
+
+    try:
+        data = request.json
+
+        base = datetime.strptime(
+            data["date"],
+            "%Y-%m-%d"
+        )
+
+        next_date = base + timedelta(days=90)
+
+        return jsonify({
+            "next_maintenance":
+            next_date.strftime("%Y-%m-%d")
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+
+# =====================================
+# RUN
+# =====================================
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
