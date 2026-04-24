@@ -2,337 +2,146 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AquaForecast Dashboard</title>
-
-<link rel="stylesheet" href="/static/style.css">
+<title>AquaForecast</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://kit.fontawesome.com/a2e0e6ad1a.js" crossorigin="anonymous"></script>
 
-<link rel="stylesheet"
-href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
+<link rel="stylesheet" href="/static/style.css">
 </head>
 
 <body>
 
 <div class="container">
 
-<!-- =========================
-SIDEBAR
-========================= -->
+<!-- SIDEBAR -->
 <aside class="sidebar">
 
     <div class="logo-box">
-
         <div class="logo-circle">
-            <img
-            src="/static/images/Logo.png"
-            alt="Logo">
+            <img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRdUY6-53NESEHhJDAyfXsJigOm9_okUAsgjw&s">
         </div>
 
         <h2>AquaForecast</h2>
         <p>Water Monitoring</p>
-
     </div>
 
-    <div class="menu-item active"
-         onclick="showPage('dashboard', this)">
-
-        <i class="fa-solid fa-chart-line"></i>
-        <span>Dashboard</span>
-
-    </div>
-
-    <div class="menu-item"
-         onclick="showPage('record', this)">
-
-        <i class="fa-solid fa-plus"></i>
-        <span>Add Data</span>
-
-    </div>
-
-    <div class="menu-item"
-         onclick="showPage('reports', this)">
-
-        <i class="fa-solid fa-table"></i>
-        <span>Records</span>
-
-    </div>
+    <div class="menu-item active" onclick="showPage('dashboard', this)">Dashboard</div>
+    <div class="menu-item" onclick="showPage('record', this)">Records</div>
+    <div class="menu-item" onclick="showPage('reports', this)">Reports</div>
 
 </aside>
 
-<!-- =========================
-MAIN
-========================= -->
-<main class="main">
+<!-- MAIN -->
+<div class="main">
 
-    <div class="topbar" id="title">
-        Dashboard
-    </div>
+<div class="topbar" id="title">Dashboard</div>
 
-<!-- =========================
-DASHBOARD
-========================= -->
-<section class="page active" id="dashboard">
+<!-- DASHBOARD -->
+<div class="page active" id="dashboard">
 
-    <!-- Chart -->
     <div class="card chart-box">
         <canvas id="chart"></canvas>
     </div>
 
-    <!-- Stats -->
-    <div class="stats-grid">
-
-        <div class="card stat-card">
-            <h4>Total Usage</h4>
-            <h2 id="total">0</h2>
-        </div>
-
-        <div class="card stat-card">
-            <h4>Average</h4>
-            <h2 id="avg">0</h2>
-        </div>
-
-        <div class="card stat-card">
-            <h4>Total Bill</h4>
-            <h2 id="bill_total">0</h2>
-        </div>
-
-        <!-- NEW Maintenance Card -->
-        <div class="card stat-card">
-
-            <h4>
-                Maintenance
-                <span id="maintenanceBadge"
-                style="display:none; font-size:12px; color:#ff9800;">
-                    ⚠ Due Soon
-                </span>
-            </h4>
-
-            <h2 id="nextMaintenance">--</h2>
-
-            <button class="btn"
-            onclick="toggleCalendar()">
-                Set Date
-            </button>
-
-            <!-- hidden calendar -->
-            <div id="calendarBox"
-            style="display:none; margin-top:12px;">
-
-                <input
-                type="date"
-                id="maintenanceDate">
-
-                <button class="btn"
-                style="margin-top:8px;"
-                onclick="setMaintenance()">
-
-                    Confirm
-
-                </button>
-
-            </div>
-
-        </div>
-
+    <div class="grid">
+        <div class="card">Total: <span id="total"></span></div>
+        <div class="card">Avg Consumption: <span id="avg"></span></div>
+        <div class="card">Avg Bill: <span id="bill_total"></span></div>
     </div>
 
-    <!-- Forecast -->
     <div class="card">
-        <h3>
-            <i class="fa-solid fa-chart-simple"></i>
-            Forecast
-        </h3>
-
-        <div id="forecast">
-            --
-        </div>
+        <h3>Forecast</h3>
+        <div id="forecast"></div>
     </div>
 
-    <!-- Anomaly -->
     <div class="card">
-        <h3>
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            Anomalies
-        </h3>
-
-        <div id="anomaly">
-            No anomalies
-        </div>
+        <h3>Anomalies</h3>
+        <div id="anomaly"></div>
     </div>
 
-</section>
+    <div class="card maintenance-card">
+        <h3>Maintenance</h3>
 
-<!-- =========================
-ADD DATA
-========================= -->
-<section class="page" id="record">
+        <input type="date" id="maintenanceDate">
 
-    <!-- Upload -->
-    <div class="card">
+        <button class="btn" onclick="openMaintenanceCalendar()">Pick Date</button>
+        <button class="btn" onclick="setMaintenance()">Set</button>
 
-        <h3>
-            <i class="fa-solid fa-upload"></i>
-            Upload File
-        </h3>
-
-        <input type="file" id="file">
-
-        <button class="btn"
-        onclick="uploadFile()">
-            Upload
-        </button>
-
+        <p id="nextMaintenance"></p>
     </div>
 
-    <!-- Add Record -->
-    <div class="card">
+</div>
 
-        <h3>
-            <i class="fa-solid fa-plus"></i>
-            Add Record
-        </h3>
+<!-- RECORDS -->
+<div class="page" id="record">
+
+    <div class="card">
+        <h3>Add Record</h3>
 
         <div class="grid">
-
-            <input
-            id="year"
-            placeholder="Year">
-
-            <select id="month">
-                <option value="1">Jan</option>
-                <option value="2">Feb</option>
-                <option value="3">Mar</option>
-                <option value="4">Apr</option>
-                <option value="5">May</option>
-                <option value="6">Jun</option>
-                <option value="7">Jul</option>
-                <option value="8">Aug</option>
-                <option value="9">Sep</option>
-                <option value="10">Oct</option>
-                <option value="11">Nov</option>
-                <option value="12">Dec</option>
-            </select>
-
-            <input
-            id="consumption"
-            placeholder="Consumption">
-
-            <input
-            id="bill"
-            placeholder="Bill">
-
+            <input id="year" placeholder="Year">
+            <input id="month" placeholder="Month">
+            <input id="consumption" placeholder="Consumption">
+            <input id="bill" placeholder="Bill">
         </div>
 
-        <button class="btn"
-        onclick="addRecord()">
-            Add Record
-        </button>
-
+        <button class="btn" onclick="addRecord()">Add</button>
     </div>
 
-</section>
-
-<!-- =========================
-REPORTS
-========================= -->
-<section class="page" id="reports">
+    <div class="card">
+        <h3>Upload CSV</h3>
+        <input type="file" id="file">
+        <button class="btn" onclick="uploadFile()">Upload</button>
+    </div>
 
     <div class="card">
+        <button class="btn-danger" onclick="resetData()">Reset All</button>
+    </div>
 
-        <h3>
-            <i class="fa-solid fa-database"></i>
-            Records Table
-        </h3>
+</div>
 
+<!-- REPORTS -->
+<div class="page" id="reports">
+
+    <div class="card">
         <table>
-
             <thead>
                 <tr>
                     <th>Year</th>
                     <th>Month</th>
-                    <th>Usage</th>
+                    <th>Consumption</th>
                     <th>Bill</th>
-                    <th>Action</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
-
-            <tbody id="reportTable">
-            </tbody>
-
+            <tbody id="reportTable"></tbody>
         </table>
-
-    </div>
-
-    <!-- Reset -->
-    <div class="card">
-
-        <h3>
-            <i class="fa-solid fa-trash"></i>
-            Reset All Data
-        </h3>
-
-        <button class="btn-danger"
-        onclick="resetData()">
-            Reset Records
-        </button>
-
-    </div>
-
-</section>
-
-</main>
-</div>
-
-<!-- =========================
-MAINTENANCE POPUP (NEW)
-========================= -->
-<div id="maintenancePopup"
-class="popup-overlay">
-
-    <div class="popup-card">
-
-        <button
-        class="popup-close"
-        onclick="closeMaintenancePopup()">
-
-            <i class="fa-solid fa-xmark"></i>
-
-        </button>
-
-        <div
-        id="popupIcon"
-        class="popup-icon">
-
-            🔧
-
-        </div>
-
-        <h2 id="popupTitle">
-            Maintenance Reminder
-        </h2>
-
-        <p id="popupText">
-            Upcoming maintenance schedule.
-        </p>
-
-        <button
-        class="btn popup-btn"
-        onclick="closeMaintenancePopup()">
-
-            OK
-
-        </button>
-
     </div>
 
 </div>
 
-<!-- =========================
-SCRIPTS
-========================= -->
+</div>
+</div>
+
+<!-- POPUPS -->
+
+<div id="anomalyPopup" class="popup">
+    <div class="popup-box anomaly">
+        <h3>⚠ Anomaly</h3>
+        <div id="anomalyPopupBody"></div>
+        <button onclick="closeAnomalyPopup()">Close</button>
+    </div>
+</div>
+
+<div id="maintenancePopup" class="popup">
+    <div class="popup-box maintenance">
+        <h3 id="popupTitle">Maintenance</h3>
+        <p id="popupText"></p>
+        <button onclick="closeMaintenancePopup()">Close</button>
+    </div>
+</div>
+
 <script src="/static/scripts.js"></script>
 
 </body>
